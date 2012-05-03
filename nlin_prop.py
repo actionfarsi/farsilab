@@ -328,7 +328,7 @@ def gaussian_pulse(t, delta_t, t0 = 0):
     """
     # Gaussian Pulse
     sigma = delta_t/sqrt(8*log(2))
-    return exp(-0.5*(t/sigma)**2) #+  exp(-(t/dt)**2/2.)# * exp(1.j * dw * 300 * t )
+    return exp(-0.5*((t-t0)/sigma)**2) #+  exp(-(t/dt)**2/2.)# * exp(1.j * dw * 300 * t )
 
 ## TODO need more work
 def generate_noise(t, rms = 1.):
