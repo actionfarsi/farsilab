@@ -1,5 +1,6 @@
-""" This is a module for time-split integration both linear and
-non linear Schroedinger.
+""" Non linear propagation
+A module for time-split integration both linear and
+non-linear Schroedinger, in the context of beam propagation.
 
 for convention A(t,z) is the field
 """
@@ -13,73 +14,91 @@ from scipy.integrate import trapz
 import matplotlib.pyplot as pl
 
 def split_step(A0, z_array,       # Array for solution points
-                t_op = 0, w_op = 0, nlin = 0,  # Constant operators 
+                t_op = 0, w_op = 0, nlin = 0,  # Constant operators
                 dt = 1,           # sampling time
                 t_nl_op = None,   # Additional operator f(A, dt, z)
                 apod = True,      # Boundary conditition
+                varying_operator = False, # Do operators vary in x
                 dynamic_predictor = True,
                 plot_hook = None, n_plots = 3,  # not used anymore
                 tollerance = 0.01, ):
-
+    """  """
     ## Initialization
+    ## Extract information from input field (n points)
     n_points = A0.shape[0]
     # w = fftfreq(npoints, dx) * 2 * pi
-    A_t = A0[:] + 0.j
-    A_w = fft(A_t) * dt
+    A_t = A0[:] + 0.j   # Force the array to complex
+    A_w = fft(A_t) * dt 
 
-    # Apodization (AK boundary conditions)
-    # TODO making it smooth
+    ## Apodization (AKA boundary conditions)
+    ## TODO maki it smooth
     apod_array = ones(n_points, dtype = complex64)
-    apod_array[0:2] = 0
-    apod_array[-3:-1] = 0
+    apod_array[0:4] = 0
+    apod_array[-5:-1] = 0
 
+    ## Beginning and end array
     z0 = z_array[0]
     zf = z_array[-1]
     
     delta_z = 1.*(z_array[1]-z_array[0])/4
     done_once = False
 
-    # Evaluate the solution with current values at delta_z step
-    # separated so that can be re-used for error prediction
-    # contains some lazy eveluation just to be CUDA-implementation ready
-    # in sense of reducing the number of function creation
+    ## Evaluate the solution with current values at delta_z step
+    ## separated so that can be re-used for error prediction
+    ## contains some lazy eveluation just to be CUDA-implementation ready
+    ## in sense of reducing the number of function creation
     
     def f(A_t, A_w, dz=delta_z):
+        
+        f.w_exp = exp(-1j * delta_z/2 * w_op)
+    
         if f.delta_z != dz:
-            f.w_exp = exp(-1j * dz/2. * w_op)
-            f.t_exp = exp(-1j * dz * t_op)
+            f.initF()
             f.delta_z = dz
         
-        # Dispersion (I pass)
+        ## Dispersion (I pass)
         f.A_w = A_w * f.w_exp
         f.A_t = ifft(f.A_w) / dt        
         
-        # Constant potential term
+        ## Constant potential term
         f.A_t = f.A_t * f.t_exp
 
-        # Nonlinear operator as intensity dependency
+        ## Nonlinear operator as intensity dependency
         if nlin != 0:
             f.A_t *= exp(-1j * delta_z * nlin * absolute(f.A_t)**2)
             
-        # Additional nonlinear terms as a function t_nl_op(A(t),dt,z)
+        ## Additional nonlinear terms as a function t_nl_op(A(t),dt,z)
         if t_nl_op != None:
             f.A_t *= exp(-1j * delta_z * t_nl_op(f.A_t, dt, z0+delta_z/2) )
-        # Apodization
+
+        ## Apodization
         if apod:
             f.A_t *= apod_array
 
-        f.A_w = fft(f.A_t) * dt        
-        # Dispersion (II pass)
+        f.A_w = fft(f.A_t) * dt
+        
+        ## Dispersion (II pass)
         f.A_w *= f.w_exp
         f.A_t = ifft(f.A_w) / dt
         
         return f.A_t[:], f.A_w[:]
 
-    # Init the f function
-    f.delta_z = 0
+    def initF():
+            # Init the f function
+                
+            ## Extract information from the operators
+            ## if it comes in a list, it must be associated
+            ## to a varying potential.
+            if varying_operator:
+                # Verify the lenght are correct
+                if len(t_op) != len(z_array):
+                    raise Exception("Varying operator has wrong size") 
+                f.t_exp = exp(-1j * delta_z * t_op[0])
+            else:
+                f.t_exp = exp(-1j * delta_z * t_op)
     
-    f.w_exp = exp(-1j * delta_z/2 * w_op)
-    f.t_exp = exp(-1j * delta_z * t_op)
+    f.initF = initF
+    f.delta_z = 0
     f.A_t = ones(n_points) + 0.j
     f.A_w = ones(n_points) + 0.j
     error = tollerance
@@ -88,7 +107,7 @@ def split_step(A0, z_array,       # Array for solution points
     
     ## Loop variable init
     sol_i = 0    
-    sols  = []
+    sols  = [A_t]
     iters = 0
     
     ## Integration loop
@@ -99,6 +118,8 @@ def split_step(A0, z_array,       # Array for solution points
             #print "dz = %.2e error=%.2f z = %.2e"%(delta_z,error,z0)
             sols.append(A_t)
             sol_i +=1
+            f.initF()
+                
         try:  ## Force to have steps smaller than the distance between 2 solutions
             while z0 + delta_z >= z_array[sol_i + 1]:
                 delta_z /= 2.
@@ -129,6 +150,9 @@ def split_step(A0, z_array,       # Array for solution points
                 delta_z = delta_z / 1.23
             if error < 0.5/tollerance:
                 delta_z = delta_z * 1.23
+                
+        if iters % 200 == 0:
+            print "Iter %8d (to end %8d) %4.2f "%(iters, (z_array[-1]-z0)/delta_z,100.*iters/(iters+(z_array[-1]-z0)/delta_z))
                 
     print "Total iterations: ", iters
     return sols
@@ -322,13 +346,13 @@ def square_pulse(t, delta_t, t0 = 0, steep = 0.01):
     """
     return (erf((t-(t0-delta_t/2.))/(steep*delta_t)) + erf(-(t-(t0+delta_t/2.))/(steep*delta_t)))/2
 
-def gaussian_pulse(t, delta_t, t0 = 0):
+def gaussian_pulse(t, delta_t, t0 = 0, n = 1):
     """ Returns a gaussian pulse centered of lenght delta_t, centered in t0
     (in respect of time_array t)
     """
     # Gaussian Pulse
     sigma = delta_t/sqrt(8*log(2))
-    return exp(-0.5*((t-t0)/sigma)**2) #+  exp(-(t/dt)**2/2.)# * exp(1.j * dw * 300 * t )
+    return exp(-0.5*((t-t0)/sigma)**(2*n) ) #+  exp(-(t/dt)**2/2.)# * exp(1.j * dw * 300 * t )
 
 ## TODO need more work
 def generate_noise(t, rms = 1.):
@@ -428,7 +452,7 @@ def plot_pulse(A_t,A_w,t,w, l0 = 1.550 * micr, t_zoom = pico, l_zoom = 10*nano):
         pl.ylabel(r'$spectrum (db)$')
 
         pl.show()
-
+        
 def animation_window(sols, other = None, xaxis = None):
     import wxmpl, wx
     class AnimatedPlot(wx.App):
@@ -483,8 +507,11 @@ def animation_window(sols, other = None, xaxis = None):
             
     AnimatedPlot().MainLoop()
 
-def plot3d_solution(solutions):
-    pl.contour(solutions)
+def plotSolution3D(solutions):
+    pl.contourf(abs(array(solutions).T), aspect = 'auto')
+    #pl.contour(abs(array(solutions).T), colors = 'gray',
+    #                                    aspect = 'auto',
+    #                                    linewidths = 1)
 
 #def spectrogram(e, t, filtre):
 #    spectra = []
@@ -607,9 +634,10 @@ import unittest
 class TestingModule(unittest.TestCase):
     def setUp(self):
         self.z = linspace(0,3,50)
-        self.t = linspace(-1,1,2**11)
+        self.t = linspace(-1,1,2**10)
     def test_functions_call(self):
-        gaussian_pulse(self.t,0.3,0.1)
+        gaussian_pulse(self.t, 0.3, 0.1)
+        gaussian_pulse(self.t, 0.3, 0.1, = 10)
         square_pulse(self.t,0.3,0.1)
         
     def test_timesplit(self):

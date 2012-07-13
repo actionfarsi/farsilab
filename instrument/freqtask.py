@@ -1,15 +1,19 @@
 """
-Frequency task
- Create instance with 
- FreqTask(channel, [sampling time, count, debug])
+based on NiDAQmx (nicaiu.dll)
+
+Create instance with 
+FreqTask(channel, [sampling time, count, debug])
  
- Get value with 
- FreqTask.read()
+Get values with 
+FreqTask.read()
+
+If you want a threaded job
+job = FreqTask.read_thread(callback)
  
- See test() for example of usage
+See test() for example of usage
  
 """ 
-from nidaq import *
+
 
 import sys
 from time import sleep
@@ -20,6 +24,7 @@ import threading
 
 # load DAQMX library
 dll = windll.LoadLibrary("nicaiu.dll")
+from nidaq import *   # Contains constants
 
 ## Shorthand for the task
 class FreqTask():
@@ -78,9 +83,9 @@ class FreqTask():
         #    return [float(i) for i in self.data]
         return float(self.data[0])
     
-    def thread_read(self, callback = lambda x: x, to_read = -1):
-        """ To execute the readin in a thread for parallel acquisition """
-    ## TODO Check if internal DAQmx callback method is better
+    def thread_read(self, callback = lambda x: print x, to_read = -1):
+        """ To execute the reading in a thread for parallel acquisition """
+        ## TODO Check if internal DAQmx callback method is better
         def run():
             while True:
                 callback(self.read(1))
@@ -139,14 +144,16 @@ def test(channel = 2, time = 0.8):
     
     ## 2nd method
     print "Threaded method"
-    def printx(x):                    ## Define a function to call everytime it reads
+   
+    ## Define a function to call everytime it reads
+    def printx(x):                    
         print x
-    j  = ts.thread_read(printx)
+    job  = ts.thread_read(printx)
 	
     while True:
         print "Press return to interrupt"
         raw_input()
-        del j
+        del job
     
 
 if __name__ == "__main__":

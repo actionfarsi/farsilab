@@ -7,7 +7,11 @@ Welcome to farsi-lab's documentation!
 =====================================
 
 Farsi-lab is a selection of scripts and programs developed by Alessandro
-Farsi (af342@cornell.edu) for scientific and hobistic purposes
+Farsi (af342@cornell.edu) for scientific and hobbistic purposes.
+
+Most of the programs come as scripts, with as little dependency as possible,
+Each file can just be copy around, changed and duplicated (this is how we do
+in the lab)
 
 Contents:
 
@@ -15,6 +19,7 @@ Contents:
    :maxdepth: 2
    
    instrument/TDC_manual
+   instrument/nidaq
 
      
    

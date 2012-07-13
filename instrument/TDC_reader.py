@@ -366,6 +366,7 @@ def generateHist(data, bins = 20, rnge = None,
 ## ==========================
 
 import threading, time, sys
+
 #sys.path.append('E:\Utilities')
 #import instserver
 #try:
@@ -379,11 +380,11 @@ class AcquisitionWorker(threading.Thread):
     
     To use it
     
-    1 Initialize the TDC
-    2 Create the thread
-    3 Start the thread
-    4 The thread will store the acquisition in the variable self.data
-    5 Once acquisitio is done, stop the threads, and save the data on file.
+    1. Initialize the TDC
+    2. Create the thread
+    3. Start the thread
+    4. The thread will store the acquisition in the variable self.data
+    5. Once acquisition is done, stop the threads, and save the data on file.
     
     It can also save a temporary file on disk (in case of accident).
     Optionally it updates an histogram for real-time visualization.
@@ -463,11 +464,11 @@ class AcquisitionWorker2ch(threading.Thread):
     
     To use it
     
-    1 Initialize the TDC
-    2 Create the thread
-    3 Start the thread
-    4 The thread will store the acquisition in the variable self.data
-    5 Once acquisitio is done, stop the threads, and save the data on file.
+    1. Initialize the TDC
+    2. Create the thread
+    3. Start the thread
+    4. The thread will store the acquisition in the variable self.data
+    5. Once acquisition is done, stop the threads, and save the data on file.
     
     It can also save a temporary file on disk (in case of accident).
     Optionally it updates an histogram for real-time visualization.
@@ -577,6 +578,8 @@ class AcquisitionWorker2ch(threading.Thread):
 ##  Monitor
 ## ====================
 ## Uses matplotlib v1.1
+
+from matplotlib.widgets import Button
 
 def monitorTDC(bins = 100, rnge = (0,100) ):
     """ Realtime acquisition and monitor
