@@ -56,6 +56,38 @@ class InstrumentFrame(wx.Frame):
         ## Update layout
         self.box.Fit(self)
     
+    def addButtonValue(self, name, callback):
+        """ Add button + return value and connect it to a command 
+        
+        """
+        
+        ## Editable text control
+        txt = wx.StaticText(self, label="--",
+                          style= wx.ALIGN_CENTRE | wx.ST_NO_AUTORESIZE)
+        txt.SetFont( self.buttonF )
+        
+        ## Associated button
+        btn = wx.Button(self, label= name)
+        btn.SetFont( self.buttonF )
+        
+        ## Bind the event
+        def callbackWrap(evt):
+            v = callback()
+            txt.SetLabel(str(v))
+            
+            
+        self.Bind(wx.EVT_BUTTON, callbackWrap, btn) 
+
+        ## Add to a the sizer
+        valueCnt = wx.BoxSizer(wx.HORIZONTAL)
+        valueCnt.Add(btn, 1,wx.ALL | wx.EXPAND, border = 4)
+        valueCnt.Add(txt, 1, wx.ALL | wx.ALIGN_CENTER_VERTICAL , border = 4)
+        valueCnt.Fit(self)
+        
+        self.box.Add(valueCnt,  1, wx.ALL | wx.EXPAND, border = 4)
+        ## Update layout
+        self.box.Fit(self)
+    
     def addValueCtr(self, name, callback, default = "0"):
         """ Add input + button and connect it to a command 
         
@@ -107,6 +139,7 @@ class InstrumentApp(wx.App):
         
         self.addValueCtr = self.f.addValueCtr
         self.addButton = self.f.addButton
+        self.addButtonValue = self.f.addButtonValue
         
 def test():
     app = InstrumentApp()  # Create a new app, don't redirect stdout/stderr to a window.
@@ -115,17 +148,18 @@ def test():
         print "b1"
 
     def b2():
-        print "b2"
+        return "22"
         
     def b3(i):
         print i,"pp"
     
     app.addButton("B1",b1)
-    app.addButton("b2",b2)
+    app.addButtonValue("b2",b2)
     app.addValueCtr("b3", b3)
+    
     
     app.MainLoop()
 
-test()
+#test()
     
 
