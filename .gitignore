@@ -1,0 +1,7 @@
+# Compiled Python
+
+*.pyc
+
+# Remove Temporary Spynx Directory
+_*
+.log

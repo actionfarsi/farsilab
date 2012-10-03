@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 :author: Action Farsi
-:date: 23 May 2012
+:date: 13 July 2012
 
 The script is composed by 4 parts
 
@@ -172,7 +172,7 @@ def readRegistry(addr):
     write((c_ubyte*2)(ord('s'), addr))
     return read()
     
-def readBuffer( ch2 = False,conversion = conversion,):
+def readBuffer(ch2 = False, conversion = conversion,):
     """ Return the measured time delay from the TDC buffer
     
     :arg ch2: set true if TDC measures 2 channels (False)
@@ -441,10 +441,14 @@ class AcquisitionWorker(threading.Thread):
             new_data.extend(d)
             
             if i %5 == 0:
-                self.data.extend(new_data)
-                
                 toc = time.time()-tic
-                print "Counts / sec = %8.2f"%(1.*len(new_data)/toc)
+                self.data.extend(new_data)
+                print "\nStarts / sec = %8.2f"%(1.*len(new_data)/toc)
+                
+                ## Remove timeouts
+                new_data = new_data[pl.nonzero(new_data[:] < 3000)[0]]
+                
+                print "  Stops / sec = %8.2f"%(1.*len(new_data)/toc)
                 
                 ## Generate channels histogram
                 if self.do_histograms:
@@ -531,12 +535,11 @@ class AcquisitionWorker2ch(threading.Thread):
             if i %5 == 0:
                 toc = time.time()-tic
                 self.n_starts += len(new_data[0])
-                print "\nCounts / sec = %8.2f   "%(1.*len(new_data[0])/toc),
+                print "\nStarts / sec = %8.2f   "%(1.*len(new_data[0])/toc),
                 new_data = pl.array(new_data)
                 ## Remove timeouts
                 t1 = pl.nonzero(new_data[0,:] < 3000)[0]
                 t2 = pl.nonzero(new_data[1,:] < 3000)[0]
-                
                 
                 try:
                     new_data = new_data[:, pl.union1d(t1,t2)]

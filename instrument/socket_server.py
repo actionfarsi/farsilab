@@ -1,27 +1,31 @@
 import threading, SocketServer, pickle, time, numpy
 import socket
+import pickle, time, json
 
-class TCPHandler(SocketServer.BaseRequestHandler):
+
+class TCPHandler(SocketServer.StreamRequestHandler):
     def handle(self):
-        # self.request is the TCP socket connected to the client
-        self.data = self.request.recv(1024).strip()
+        data = json.loads(self.rfile.readline())
+                
         # Check is present in dictionary
-        if self.data == "log":
-            self.request.send(self.server.log)
-            return
-        if self.data == "monitor":
-            self.request.send(pickle.dumps(self.server.values))
+        response = self.server.binder[data['method']](data['params'])
+        self.request.send(json.dumps({      "jsonrpc": "2.0",
+                                            'response': response,
+                                            'id': data['id']  }))
+                    
             
-        try:
-            self.response = self.server.commands[self.data]()
-            self.request.send(self.response)
-        except:
-            self.request.send(self.server.log)
-
 def server(commands= {'log': 0}):
     HOST, PORT = "", 9999
     # Create the server, binding to localhost on port 9999
     server = SocketServer.TCPServer((HOST, PORT), TCPHandler)
+    
+    def values(values = None):
+        if values is not None:
+            server.values = values
+        return server.values
+    
+    server.binder = {'values': values }
+    
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.start()
     
@@ -45,6 +49,6 @@ if __name__ == '__main__':
     i = 0
     while True:
         i = i +1
-        time.sleep(0.3)
-        s.values = [numpy.linspace(i,i+2,3),numpy.linspace(i-5,i+2-5,3),]
+        time.sleep(0.5)
+        s.values = [i%20, i%20+1]
         

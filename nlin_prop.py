@@ -13,6 +13,8 @@ from scipy.integrate import trapz
 
 import matplotlib.pyplot as pl
 
+import pdb
+
 def split_step(A0, z_array,       # Array for solution points
                 t_op = 0, w_op = 0, nlin = 0,  # Constant operators
                 dt = 1,           # sampling time
@@ -21,20 +23,40 @@ def split_step(A0, z_array,       # Array for solution points
                 varying_operator = False, # Do operators vary in x
                 dynamic_predictor = True,
                 plot_hook = None, n_plots = 3,  # not used anymore
-                tollerance = 0.01, ):
-    """  """
+                tollerance = 0.04, ):
+    """ Perform Split step integration of nl Schroedinger eq
+    
+    :arg A0: initial array (len should be a power of 2)
+    
+    :arg z_array: (must contains 0 and final point. If intermediate points are given
+        the integration will give the solution at that given point, and will try
+        to use integration step smalle than the distance of 2 subquent z points
+        
+    :arg t_op: Operator for time-evolution
+    :arg w_op: Operator for the Fourie domain
+    :arg nlin: Non-linear operator, nlin * |A|^2
+    
+    :arg t_nl_op: Addional operator in the form f(A, dt, z)
+    :arg apod: Apodization at the boundaries
+    
+    :arg varying_operator: Boolean, doeas any operator vary in z
+    
+    :arg dynamic_predicto: def False, implement predictor for z_step
+    :arg tollerance: relative error to be used to chose the dynamic z_step
+    
+    """
     ## Initialization
     ## Extract information from input field (n points)
     n_points = A0.shape[0]
     # w = fftfreq(npoints, dx) * 2 * pi
     A_t = A0[:] + 0.j   # Force the array to complex
-    A_w = fft(A_t) * dt 
-
+    A_w = fft(A_t) * dt
+    
     ## Apodization (AKA boundary conditions)
     ## TODO maki it smooth
     apod_array = ones(n_points, dtype = complex64)
-    apod_array[0:4] = 0
-    apod_array[-5:-1] = 0
+    apod_array[0:n_points/50] = 0
+    apod_array[-n_points/50:-1] = 0
 
     ## Beginning and end array
     z0 = z_array[0]
@@ -127,11 +149,15 @@ def split_step(A0, z_array,       # Array for solution points
             pass
         
         ## Dynamical correction
-        while True and (dynamic_predictor or not (done_once or dynamic_predictor) ):
-            A_coarse = f(A_t, A_w,dz = 2 * delta_z)
-            A_fine = f(*f(A_t, A_w, delta_z),dz=delta_z)
-            error = sqrt(trapz(abs(A_fine[0] - A_coarse[0])**2)/
-                         trapz(abs(A_fine[0])**2) )
+        while dynamic_predictor:
+            A_coarse = f(A_t[:],
+                         A_w[:],
+                         dz = 2 * delta_z)[0]
+            A_fine = f(*f(A_t[:],
+                          A_w[:], delta_z),dz=delta_z)[0]
+            delta = A_fine-A_coarse
+            error = sqrt( trapz(delta*delta.conj())/ \
+                          trapz(A_fine*A_fine.conj()))
             #print "Error : ",error, " dz :", delta_z
             if error < 2 * tollerance:
                 done_once = True
@@ -139,7 +165,7 @@ def split_step(A0, z_array,       # Array for solution points
             delta_z = delta_z / 2.
         
         ## Calculate next step
-        A_t, A_w = f(A_t, A_w,delta_z)
+        A_t, A_w = f(A_t, A_w, delta_z)
         ## Update steps
         z0 += delta_z
         iters += 1
@@ -152,7 +178,9 @@ def split_step(A0, z_array,       # Array for solution points
                 delta_z = delta_z * 1.23
                 
         if iters % 200 == 0:
-            print "Iter %8d (to end %8d) %4.2f "%(iters, (z_array[-1]-z0)/delta_z,100.*iters/(iters+(z_array[-1]-z0)/delta_z))
+            print "Iter %8d (to end %8d) %4.2f %%"%(iters,
+                        (z_array[-1]-z0)/delta_z,
+                        100.*iters/(iters+(z_array[-1]-z0)/delta_z))
                 
     print "Total iterations: ", iters
     return sols
@@ -167,16 +195,19 @@ def split_step_GPU(A0, z_array,       # Array for solution points
                 dt = 1,           # sampling time
                 t_nl_op = None,   # Additional operator f(A, dt, z)
                 apod = True,      # Boundary conditition
+                varying_operator = False, # Do operators vary in x
                 dynamic_predictor = True,
                 plot_hook = None, n_plots = 3,  # not used anymore
-                tollerance = 0.01, ):
+                tollerance = 0.04, ):
     
     import pycuda.autoinit
-    from pycuda.tools import make_default_context,dtype_to_ctype
+
+    from pycuda.tools import make_default_context, dtype_to_ctype
     import pycuda.gpuarray as gpuarray
     from pycuda import cumath
     from pyfft.cuda import Plan
     from pycuda.compiler import SourceModule
+    from pycuda.driver import Context
     from pycuda.elementwise import get_axpbyz_kernel, get_axpbz_kernel, get_binary_op_kernel, get_elwise_kernel,ElementwiseKernel
             
     ## Initialization
@@ -185,7 +216,8 @@ def split_step_GPU(A0, z_array,       # Array for solution points
     A_t = A0[:] +0.j
     #A_t.dtype = complex64
     A_w = fft(A_t) * dt
-
+    
+    
     # Apodization (AK boundary conditions)
     # TODO making it smooth
     apod_array = ones(n_points, dtype = complex64)
@@ -204,22 +236,31 @@ def split_step_GPU(A0, z_array,       # Array for solution points
     #ifft_g = lambda x, y: dll.cufftExecC2C(plan, x.ptr, y.ptr, 1)
     
     ## GPU modules #####
-    context = make_default_context()
-    block = (32,1,1)
+    if pycuda.autoinit.context:
+        context = pycuda.autoinit.context
+    else:
+        context =  make_default_context()
+    block = (16,1,1)
     grid  = (n_points/block[0], 1)
 
     ## Init GPU kernels ####
     ## fft, scale dx is included in the definition here
     plan = Plan(n_points,wait_for_finish = True, scale = dt)   
-    fft_g  = lambda x, y: plan.execute(x, y)
+    fft_g  = lambda ain, aout: plan.execute(ain, aout,)
     ifft_g = lambda x, y: plan.execute(x, y, inverse = True)
 
     ## Multiplication
-    prod  = get_binary_op_kernel(complex64, complex64, complex64,'*')
+    prod  = ElementwiseKernel(
+            "pycuda::complex<float> *x, pycuda::complex<float> *y, pycuda::complex<float> *z",
+            """
+            z[i] = x[i] * y[i];
+            """,
+            "product",
+            preamble = "")
     #prod  = lambda x,y,z: prod(x,y,z, block, grid)
     
     ## Non-linearity
-    nonLinear = get_elwise_kernel(
+    nonLinear = ElementwiseKernel(
             "pycuda::complex<float> *x, pycuda::complex<float> nlin, pycuda::complex<float> *y, pycuda::complex<float> *z",
             """
             pycuda::complex<float> I_UNIT(0.,1.);
@@ -239,54 +280,68 @@ def split_step_GPU(A0, z_array,       # Array for solution points
             f.w_exp = cumath.exp(-1j * dz/2. * w_op)
             f.t_exp = cumath.exp(-1j * dz * t_op)
             f.delta_z = dz
-            
+        
         ## Dispersion (I pass)
         f.A_t = A_t
-        prod(A_w,f.w_exp ,f.A_w, block=block, grid=grid)
+        f.A_w = A_w
+        
+        #print A_w.get()[n_points/2],     
+        prod(A_w, f.w_exp, A_w)
+        #A_w = f.w_exp*A_w
+        #print A_w.get()[n_points/2],
         ifft_g(f.A_w, f.A_t)  ## Scale factor included in fft_g
-
+        
+        
         ## Constant potential term
-        prod(f.A_t, f.t_exp ,f.A_t, block=block, grid=grid)
+        prod(f.A_t, f.t_exp, f.A_t)
 
         ## Nonlinear operator as intensity dependency
         if nlin != 0:
             f.A_t = f.A_t * cumath.exp(-1j * delta_z * nlin * f.A_t * f.A_t.conj())
         ## Additional nonlinear terms as a function t_nl_op(A(t),dt,z)
         if t_nl_op != None:
-            f.A_t = f.A_t*exp(-1j * delta_z * t_nl_op(f.A_t, dt, z0+delta_z/2) )
+            f.A_t = f.A_t * cumath.exp(-1j * delta_z * t_nl_op(f.A_t, dt, z0+delta_z/2) )
         ## Apodization
         if apod:
-            prod(f.A_t, apod_array ,f.A_t, block=block, grid=grid)
+            prod(f.A_t, apod_array, f.A_t)
             
         fft_g(f.A_t, f.A_w) ## Scale factor included in fft_g
-     
+        
         ## Dispersion (II pass)
-        prod(f.A_w,f.w_exp ,f.A_w, block=block, grid=grid)
+        prod(f.A_w, f.w_exp, f.A_w)
         
         ifft_g(f.A_w, f.A_t)  ## Scale factor included in fft_g
-
+        
+        
         return f.A_t, f.A_w
 
-    # Init the f function
+    ## Init the f function
     f.delta_z = 0 # The rest will be evaluated lazily
 
-    # Convert to GPU arrays
+    ## Convert to GPU arrays
     f.A_t = gpuarray.to_gpu(ones(n_points, complex64))
     f.A_w = gpuarray.to_gpu(ones(n_points, complex64))
     A_t   = gpuarray.to_gpu(A_t.astype(complex64))
     A_w   = gpuarray.to_gpu(A_w.astype(complex64))
+    
+    
+    
     apod_array  = gpuarray.to_gpu(apod_array.astype(complex64))
     if hasattr(w_op,'__len__'):
         w_op = gpuarray.to_gpu(w_op.astype(complex64))
+    else:  ## Use array even if it's a single values, othewise error when updating dz
+        w_op = gpuarray.to_gpu(w_op*ones(n_points).astype(complex64))
     if hasattr(t_op,'__len__'):
         t_op = gpuarray.to_gpu(t_op.astype(complex64))
+    else:
+        t_op = gpuarray.to_gpu(t_op*ones(n_points).astype(complex64))
     error = tollerance
     
     print "Ready for integration"
     
-    ## Init loop varaibles
+    ## Init loop variables
     sol_i = 0    
-    sols  = []
+    sols  = [A0]
     iters = 0
     
     ## Integration loop
@@ -296,6 +351,7 @@ def split_step_GPU(A0, z_array,       # Array for solution points
             #print "dz = %.2e error=%.2f z = %.2e"%(delta_z,error,z0)
             sols.append(A_t.get())
             sol_i +=1
+            
         try:  ## Force to have steps smaller than the distance between 2 solutions
             while z0 + delta_z >= z_array[sol_i + 1]:
                 delta_z /= 2.
@@ -303,12 +359,16 @@ def split_step_GPU(A0, z_array,       # Array for solution points
             pass
     
         ## Dynamical correction
-        while True and (dynamic_predictor or not(done_once or dynamic_predictor) ):
-            A_coarse = f(A_t, A_w, dz=2*delta_z)
-            A_fine = f(*f(A_t, A_w, delta_z), dz=delta_z) 
-            delta = A_fine[0]-A_coarse[0]
-            error = sqrt( trapz((delta*delta.conj()).get())/ \
-                          trapz((A_fine[0]*A_fine[0].conj()).get()))
+        while dynamic_predictor:
+            A_coarse = f(gpuarray.to_gpu(A_t.get()),
+                         gpuarray.to_gpu(A_w.get()),
+                         dz=2*delta_z)[0].get()
+            A_fine = f(*f(gpuarray.to_gpu(A_t.get()),
+                          gpuarray.to_gpu(A_w.get()),
+                         delta_z), dz=delta_z)[0].get()
+            delta = A_fine-A_coarse
+            error = sqrt( trapz(delta*delta.conj())/ \
+                          trapz(A_fine*A_fine.conj()))
             #print "Error : ",error, " dz :", delta_z
             if error < 2 * tollerance:
                 done_once = True
@@ -320,20 +380,21 @@ def split_step_GPU(A0, z_array,       # Array for solution points
         z0 += delta_z
         iters += 1
         
-        # Show the state of the loop every 200 loops (approx every few secs)
-        if iters %200 == 0:
-            print "%3.2f "%(z0/z_array[-1])
-
         # Dynamic step (additional correction for faster convergence)
         if (dynamic_predictor or not (done_once or dynamic_predictor) ):
             if error > tollerance:
                 delta_z = delta_z / 1.23
             if error < 0.5/tollerance:
                 delta_z = delta_z * 1.23
+                
+        # Show the state of the loop every 200 loops (approx every few secs)
+        if iters %200 == 0:
+            print "Iter %8d (to end %8d) %4.1f %%"%(iters, 
+                            (z_array[-1]-z0)/delta_z,
+                            100.*iters/(iters+(z_array[-1]-z0)/delta_z))
     
     ## Integration is over
     print "Total iterations: ", iters
-    context.pop()
     ## Return array with solutions (and their ftt)
     return sols
 
@@ -378,7 +439,7 @@ def disperd(e, dt, w):
     return ifft( fft(e)*exp( 1j * w**2 * dt*abs(dt)*(1./pi)**2))
 
 
-# Area and momentum
+#### Area and momentum
 def normalize_pulse(a, t):
     return a/trapz(absolute(a)**2,x = t, dx = dt)
 
@@ -631,44 +692,71 @@ def cavity():
 
 ## Unit Test
 import unittest
-class TestingModule(unittest.TestCase):
+import time
+class SplitStepCPUGPU(unittest.TestCase):
+    """ Test the split_step and compare between GPU and CPU implementation
+    
+    """
     def setUp(self):
-        self.z = linspace(0,3,50)
+        self.z = linspace(0,3,20)
         self.t = linspace(-1,1,2**10)
+        self.A = gaussian_pulse(self.t,0.3,0.1)
+    
+    
+    def runTimeSplit(self,options):
+        s1 = split_step(self.A, self.z, **options)[-1]
+        s2 = split_step_GPU(self.A, self.z, **options)[-1]
+        
+        assert  sum(abs(s1-s2)**2)/sum(abs(s2)**2) < 0.05
+    
+    
     def test_functions_call(self):
         gaussian_pulse(self.t, 0.3, 0.1)
-        gaussian_pulse(self.t, 0.3, 0.1, = 10)
+        gaussian_pulse(self.t, 0.3, n = 10)
         square_pulse(self.t,0.3,0.1)
         
     def test_timesplit(self):
-        A = gaussian_pulse(self.t,0.3,0.1)
-        split_step(A, self.z,
-                t_op = 1, w_op= 1, nlin = 0)
+        w = fftfreq(len(self.t),2./len(self.t))*2*pi
+        options = { 't_op': 1*self.A**2,
+                    'w_op': 0.01*w**2,
+                    'nlin': 1,
+                    'dynamic_predictor': True,
+                    'apod': True   }
+        self.runTimeSplit(options)
+            
     def test_timesplit_nl(self):
-        A = gaussian_pulse(self.t,0.3,0.1)
-        split_step(A, self.z,
-                t_op = 0, w_op = 0, nlin = 1)
-    def test_timesplit_disp(self):
-        A = gaussian_pulse(self.t,0.3,0.1)
-        w = fftfreq(len(self.t),2./len(self.t))*2*pi
-        split_step(A, self.z,
-                t_op = 0, w_op = 0.01*w, nlin = 0)
-    def test_GPU(self):    
-        A = gaussian_pulse(self.t,0.01,0.1)
-        w = fftfreq(len(self.t),2./len(self.t))*2*pi
-        t_op = 1e2*self.t**2
-        w_op = 1e-4*w**2
-        print "--"
-        s_test = split_step(A, self.z,
-            t_op = t_op, w_op = w_op, nlin = 5)        
-        print "GPU"
-        s  = split_step_GPU(A, self.z,
-            t_op = t_op, w_op = w_op, nlin = 5)
+        options = { 't_op': 0.0,
+                    'w_op': 0.0,
+                    'nlin': 10,
+                    'dynamic_predictor': True,
+                       }
+        self.runTimeSplit(options)
         
-        #pl.plot(abs(s[-1]))
-        #pl.plot(abs(s_test[-1]))
-        #pl.show()
-        assert sum(abs(s[-1]-s_test[-1])) < 0.1
+    def test_timesplit_disp(self):
+        w = fftfreq(len(self.t),2./len(self.t))*2*pi
+        options = { 't_op': 0.0,
+                    'w_op': 0.01*w**2,
+                    'nlin': 0,
+                    'dynamic_predictor': True,
+                       }
+                    
+        self.runTimeSplit(options)
+    
+    def test_timesplit_time(self):
+        w = fftfreq(len(self.t),2./len(self.t))*2*pi
+        
+        options = { 't_op': 1*self.A**2,
+                    'w_op': 0.0,
+                    'nlin': 0,
+                    'dynamic_predictor': True,
+                       }
+                    
+        self.runTimeSplit(options)
+
+
 
 if __name__ == '__main__':
     unittest.main(verbosity = 2)
+    
+    
+    
