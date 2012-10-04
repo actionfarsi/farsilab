@@ -246,6 +246,8 @@ def test():
     
     app.MainLoop()
 
-test()
+## Run the test if the module is executed
+if __name__ == '__main__':
+    test()
     
 
