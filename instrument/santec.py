@@ -9,7 +9,7 @@
 import instrument_panel
 import visa
 
-#gpib = visa.instrument("GPIB::30")
+gpib = visa.instrument("GPIB::30")
 
 def laserOn():
     gpib.write("LO")
