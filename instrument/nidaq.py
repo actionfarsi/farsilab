@@ -7,7 +7,8 @@ DAQmx_Val_CountUp = 10128
 DAQmx_Val_FiniteSamps = 10178 # Finite Samples
 DAQmx_Val_ContSamps  = 10123
 
-
+DAQmx_Val_GroupByChannel =0
+DAQmx_Val_RSE  =10083 
 DAQmx_Val_Volts = 10348
 DAQmx_Val_Hz =  10373 # Hz
 DAQmx_Val_LowFreq1Ctr = 10105 # Low Frequency with 1 Counter
