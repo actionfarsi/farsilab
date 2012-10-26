@@ -15,6 +15,7 @@ The script is composed by 4 parts
 from matplotlib import pylab as pl
 import matplotlib.animation as animation
 from numpy import savetxt, random
+#s = serial.Serial("com4", timeout = 0)
 
 from ctypes import *
 
@@ -261,15 +262,14 @@ def initTdc(channels = 1):
     :arg channels: 1,2     
     """
     dll.FT_Purge(handle,0b11)
-    registry_values['HITN1'][3] = 1
-    registry_values['HITN2'][3] = 0
-        
+    if (channels == 1):
+        registry_values['HITN1'][3] = 1
+        registry_values['HITN2'][3] = 0
+        write('1')
     if (channels == 2):
         registry_values['HITN1'][3] = 1
         registry_values['HITN2'][3] = 1
         write('2')
-    else:
-        write('1')
         
     print ask('a')
     time.sleep(0.01)
@@ -322,7 +322,7 @@ def test2ch():
     data = [[],[]]
     tic = time.time()
     ## Start reading loop
-    for x in xrange(50):
+    for x in xrange(5):
         time.sleep(0.5)
         d = readBuffer(True)
         data[0].extend(d[0])
@@ -334,6 +334,16 @@ def test2ch():
                                                                (data[1][-1]*conversion))
     print "Counts / sec = %.2f"%(1.*len(data[0])/toc)
 
+
+## Acquisition routines
+import threading, time, sys
+sys.path.append('E:\Utilities')
+import instserver
+#try:
+    #server = instserver.server()
+#except:
+server = None
+    
 def generateHist(data, bins = 20, rnge = None,
                        histogram = None):
     """ Generate an histogram of data
@@ -436,20 +446,26 @@ class AcquisitionWorker(threading.Thread):
             i += 1
             time.sleep(0.1)
             d = readBuffer()
-            print 'len ', len(d)
+            print "%6d"%len(d),
             #d = random.rand(10)*100
             new_data.extend(d)
             
             if i %5 == 0:
-                toc = time.time()-tic
+                print ""
                 self.data.extend(new_data)
-                print "\nStarts / sec = %8.2f"%(1.*len(new_data)/toc)
-                
+                new_data = pl.array(new_data)
                 ## Remove timeouts
-                new_data = new_data[pl.nonzero(new_data[:] < 3000)[0]]
+                t = pl.nonzero(new_data < 3000)
                 
-                print "  Stops / sec = %8.2f"%(1.*len(new_data)/toc)
+                try:                   
+                    new_data = new_data[t[0]]
+                except IndexError:
+                    pass
                 
+                toc = time.time()-tic
+                
+                print "Counts / sec = %8.2f"%(1.*len(new_data)/toc)
+                print '                                 Starts ',
                 ## Generate channels histogram
                 if self.do_histograms:
                     self.hist = generateHist(new_data, self.bins, rnge= self.rnge,histogram = self.hist[1])                  
@@ -532,14 +548,16 @@ class AcquisitionWorker2ch(threading.Thread):
             #d = random.rand(2,10)*100
             new_data[0].extend(d[0])
             new_data[1].extend(d[1])
+            
             if i %5 == 0:
                 toc = time.time()-tic
                 self.n_starts += len(new_data[0])
-                print "\nStarts / sec = %8.2f   "%(1.*len(new_data[0])/toc),
+                print "\nStarts / sec = %6.1f   "%(1.*len(new_data[0])/toc),
                 new_data = pl.array(new_data)
                 ## Remove timeouts
                 t1 = pl.nonzero(new_data[0,:] < 3000)[0]
                 t2 = pl.nonzero(new_data[1,:] < 3000)[0]
+                
                 
                 try:
                     new_data = new_data[:, pl.union1d(t1,t2)]
@@ -564,9 +582,9 @@ class AcquisitionWorker2ch(threading.Thread):
                         coinc = coinc[1]-coinc[0]
                         self.hist_c = generateHist(coinc, 2*self.bins, rnge = self.rnge_c, histogram = self.hist_c[1])
                         #print "Coincidences ", self.hist_c[1]
-                        print "Coinc Rate %8.2f"%(1.*len(coinc)/toc),
+                        print "Coinc %5.1f (%d)"%(1.*len(coinc)/toc, sum(self.hist_c[1])),
                     except IndexError:
-                        print "Coinc Rate %8.2f"%(0),
+                        print "Coinc %5.1f"%(0),
                         
                         
                     
@@ -620,7 +638,7 @@ def monitorTDC(bins = 100, rnge = (0,100) ):
     fig = pl.figure()
     ax = pl.gca()
     l, = pl.plot(aWorker.hist[0], aWorker.hist[1], 'r-')
-    pl.xlabel('Time (ps)')
+    pl.xlabel('Time (ns)')
     pl.title('TDC Channel 1')
     update_line.scale = 25
     pl.ylim(0, update_line.scale)
@@ -685,13 +703,13 @@ def monitorTDC2(bins = 100, rnge = (0,100) ):
     ax1 = pl.subplot(121)
     l1, = pl.plot(aWorker.hist[0][0], aWorker.hist[0][1], 'r-')
     l2, = pl.plot(aWorker.hist[1][0], aWorker.hist[1][1], 'b-')
-    pl.xlabel('Time (ps)')
+    pl.xlabel('Time (ns)')
     pl.title('TDC Channel 1,2')
     update_line.scale1 = 25
     ax1.set_ylim(0, update_line.scale1)
     ax2 = pl.subplot(122)
     l3, = pl.plot(aWorker.hist_c[0], aWorker.hist_c[1], 'g-')
-    pl.xlabel('Time (ps)')
+    pl.xlabel('Time (ns)')
     pl.title('TDC Coincidences')
     update_line.scale2 = 25
     ax2.set_ylim(0, update_line.scale2)
@@ -810,7 +828,8 @@ def simpleAc2():
             
     # print data 
 
-#test()
-#simpleThreadedAcquisition()
-#monitorTDC(bins = 200, rnge = (100,200) )
-#monitorTDC2(bins = 200, rnge = (100,200) )
+if __name__ == "__main__":
+    #test()
+    #simpleThreadedAcquisition()
+    monitorTDC2(bins = 200, rnge = (0,100) )
+    #monitorTDC2(bins = 200, rnge = (100,200) )
