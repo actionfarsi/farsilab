@@ -36,7 +36,6 @@ a_si = Bunch()
 temp = loadtxt(dir + "CRYSTALS_a-Si_sopra_siam1.txt", skiprows = 1, unpack = True)   # l, n, k
 a_si.ntab = [temp[0]*1e-6, temp[1]+1j*temp[2] ]
 
-
 ########      Silicon dioxide        #########
 si_d = Bunch()
 #  Gorachand Ghosh. Dispersion-equation coefficients for the refractive index and birefringence of calcite and quartz crystals, Opt. Commun. 163, 95-102 (1999) doi:10.1016/S0030-4018(99)00091-7

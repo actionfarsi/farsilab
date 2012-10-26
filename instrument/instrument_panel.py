@@ -19,12 +19,10 @@ wxversion.ensureMinimal('2.8')
 
 import matplotlib
 matplotlib.use('WXAgg')
-import matplotlib.cm as cm
-import matplotlib.cbook as cbook
+
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as Toolbar
 from matplotlib.figure import Figure
-import numpy as npy
 
 import wx
 import wx.xrc as xrc
@@ -246,6 +244,8 @@ def test():
     
     app.MainLoop()
 
-test()
+## Run the test if the module is executed
+if __name__ == '__main__':
+    test()
     
 
