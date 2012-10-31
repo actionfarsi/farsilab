@@ -10,6 +10,7 @@ from numpy import *
 from numpy.fft import fft, ifft, fftfreq, fftshift, ifftshift
 from scipy.special import erf
 from scipy.integrate import trapz
+from scipy.io import loadmat, savemat
 
 import matplotlib.pyplot as pl
 
@@ -580,7 +581,235 @@ def plotSolution3D(solutions):
 #        spectra.append(fft(e * gaussian_pulse(t, delta_t = filtre, t0=t0)))
 #    plot
 #    
+
+
+
+
+def visualizer(data):
+    """ Stand Alone app to analize solution
     
+    data are a dictionary with
+    
+    :sol: solution
+    
+    """
+    
+    # Used to guarantee to use at least Wx2.8
+    import wxversion
+    wxversion.ensureMinimal('2.8')
+
+    import matplotlib
+    matplotlib.use('WXAgg')
+
+    from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
+    from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as Toolbar
+    from matplotlib.figure import Figure
+
+    import wx
+    import wx.xrc as xrc
+
+    class PlotPanel(wx.Panel):
+        """ Inspired by example "embedding_in_wx3.py"
+        
+        Bare matplotlib panel
+        """
+        def __init__(self, parent):
+            wx.Panel.__init__(self, parent, -1)
+
+            self.fig = Figure((3,2))
+            self.canvas = FigureCanvasWxAgg(self, -1, self.fig)
+            self.toolbar = Toolbar(self.canvas) #matplotlib toolbar
+            self.toolbar.Realize()
+            #self.toolbar.set_active([0,1])
+            
+            ## Now put all into a sizer
+            sizer = wx.BoxSizer(wx.VERTICAL)
+            ## This way of adding to sizer allows resizing
+            sizer.Add(self.canvas, 1, wx.ALL | wx.EXPAND)
+            ## Best to allow the toolbar to resize!
+            sizer.Add(self.toolbar, 0, wx.ALL)
+            self.sizer = sizer
+            self.SetSizer(sizer)
+            self.Fit()
+
+        def GetToolBar(self):
+            # You will need to override GetToolBar if you are using an
+            # unmanaged toolbar in your frame
+            return self.toolbar
+
+        def onEraseBackground(self, evt):
+            # this is supposed to prevent redraw flicker on some X servers...
+            pass
+    
+    class InstrumentFrame(wx.Frame):
+        def __init__(self, title = "Visualizer GUI",
+                           parent = None,):
+                           
+            ## A Frame is a top-level window
+            wx.Frame.__init__(self, parent, wx.ID_ANY, title, size = (700,600))
+            self.Show(True)     # Show the frame.
+            
+            self.stdF = wx.Font(14, wx.FONTFAMILY_DEFAULT,
+                                      wx.FONTSTYLE_NORMAL,
+                                      wx.FONTWEIGHT_NORMAL)
+                                      
+            self.buttonF = wx.Font(16, wx.FONTFAMILY_DEFAULT,
+                                        wx.FONTSTYLE_NORMAL,
+                                        wx.FONTWEIGHT_BOLD)
+                                      
+            self.SetFont( self.stdF )
+            
+            self.buttons = []
+            
+            ## Set Sizer and Automatic Layout
+            ##- 4 boxes 1) 3d/contour
+            ##          2) slice/animation
+            ##          3) Open/save
+            ##          4) parameters..
+            
+            self.box = wx.FlexGridSizer(2,2)
+            self.box.SetFlexibleDirection(wx.BOTH)
+            
+            ### Info ######
+            ### ==== ######
+            self.info = wx.StaticText(self, label = "blah blah")
+            #self.description.SetSize((300,-1))
+            self.box.Add(self.info, 0, wx.ALL , border = 4)   
+            
+            ### 3d/contour ######
+            ### ========== ######
+            self.contour_plot = PlotPanel(self)
+            bSizer = wx.BoxSizer( wx.VERTICAL )
+            
+            ## Slider to select the frame
+            self.m_slider = wx.Slider( self, wx.ID_ANY, 0,
+                                        0, 100,   # Size
+                                        wx.DefaultPosition, wx.DefaultSize, wx.SL_HORIZONTAL )
+            
+            def onslider(evt):
+                self.line.set_ydata( abs(self.data['sol'][self.m_slider.GetValue()])**2 )
+                self.vline.set_xdata( [self.z[self.m_slider.GetValue()], self.z[self.m_slider.GetValue()]])
+                self.contour_plot.canvas.draw()
+                self.slice_plot.canvas.draw()
+                
+            self.Bind(wx.EVT_SCROLL, onslider, self.m_slider)
+            
+            bSizer.Add(self.contour_plot,  1,wx.ALL | wx.EXPAND, border = 2)
+            bSizer.Add( self.m_slider, 0, wx.ALL|wx.EXPAND, border= 2 )
+            
+            self.box.Add(bSizer,  1,wx.ALL | wx.EXPAND, border = 2)
+            
+            
+            
+            ### Button Box ######
+            ### ========== ######
+            buttonbox = wx.BoxSizer(wx.VERTICAL)
+            ## Load
+            btn = wx.Button(self, label= "Load")
+            btn.SetFont( self.buttonF )
+        
+            ## Bind the event
+            def callbackWrap(evt):
+                dlg = wx.FileDialog(None, style = wx.OPEN, wildcard = "*.mat")
+                if dlg.ShowModal() == wx.ID_OK:
+                    # User has selected something, get the path, set the window's title to the path
+                    filename = dlg.GetPath()
+                    try:
+                        data = loadmat(filename, appendmat = False)
+                        self.setData(data)
+                    except:
+                        print filename,"  - File error"
+
+                ##v = callback()
+                ##txt.SetLabel(str(v))
+            
+            ## Bind the event
+            self.Bind(wx.EVT_BUTTON, callbackWrap, btn) 
+            buttonbox.Add(btn,  0, wx.ALL | wx.EXPAND, border = 4)
+            
+            ## Save
+            btn = wx.Button(self, label= "Save")
+            btn.SetFont( self.buttonF )
+        
+            def callbackWrap(evt):
+                dlg = wx.FileDialog(None, style = wx.SAVE, wildcard = ".mat")
+                if dlg.ShowModal() == wx.ID_OK:
+                    # User has selected something, get the path, set the window's title to the path
+                    filename = dlg.GetPath()
+                    try:
+                        savemat(filename, self.data, appendmat = False)
+                    except:
+                        print filename,"  - File error"
+            
+            ## Bind the event
+            self.Bind(wx.EVT_BUTTON, callbackWrap, btn) 
+            buttonbox.Add(btn, 0, wx.ALL | wx.EXPAND, border = 4)
+            
+            self.box.Add(buttonbox)
+            
+            ### Slice      ######
+            ### ========== ######
+            self.slice_plot = PlotPanel(self)
+            self.box.Add( self.slice_plot, 1, wx.EXPAND |wx.ALL, 2 )
+            
+            ## Flexible Grid ####
+            ## ------------- ####
+            self.box.AddGrowableRow(0,1)
+            self.box.AddGrowableRow(1,1)
+            self.box.AddGrowableCol(0,1)
+            self.box.AddGrowableCol(1,3)
+            self.SetSizer(self.box)
+            self.Layout()
+        
+        def setData(self, data):
+            """ Update with new data """
+            self.data = data
+            
+            ## Data ###
+            solutions = data["sol"]
+            
+            self.z = data.get("z", linspace(0,1, len(solutions)) ).flatten()
+            t = data.get("t", linspace(0,1, len(solutions[0]))).flatten()
+            w = data.get("w", linspace(-1,1, len(solutions[0]))).flatten()
+            pot = data.get("pump", None)
+            
+            
+            title = data.get("title", ["Beam propagation"])[0]
+            notes = data.get("notes", [""])[0]
+            date = data.get("date",[""])[0]
+            
+            info = "%s\n%s\n%s"%(title,date, notes)
+            
+            ## Notes ##
+            self.info.SetLabel(info)
+            
+            ## Plot ###
+            axis = self.contour_plot.fig.add_subplot(111)            
+            axis.hold(False)
+            axis.contourf(self.z,t,abs(array(solutions).T)**2, 20, aspect = 'auto')#, cmap = matplotlib.cm.autumn)
+            self.vline = axis.axvline(self.z[-1], linewidth=3, color='k')
+            
+            
+            axis = self.slice_plot.fig.add_subplot(111)            
+            axis.hold(False)
+            axis.plot(t,abs(array(solutions[0]))**2, label = "Start", color="grey")
+            axis.hold(True)
+            self.line, = axis.plot(t,abs(array(solutions[-1]))**2, label = "Final")
+            if pot==None:
+                axis.plot(t,abs(pot)**2, label = "Potential", color="red")
+            axis.legend()
+            
+            ## Slider ###
+            self.m_slider.SetRange(0,len(solutions)-1)
+            self.m_slider.SetValue(len(solutions)-1)
+            
+            self.contour_plot.canvas.draw()            
+            self.slice_plot.canvas.draw()
+            
+    app = wx.App(False)
+    f = InstrumentFrame()
+    f.setData(data)
+    app.MainLoop()
     
 ## Optical analogue helper functions
 def getABC(l0, disp, gamma, p, reprate, deltat):
