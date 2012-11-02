@@ -311,18 +311,18 @@ class InstrumentFrame(wx.Frame):
         
 if __name__ == "__main__":
     
-    # filename = sys.argv[1]
-    # try:
-        # d1,d2 = loadtxt(filename)
-        # data = d2-d1
-    # except:
-        # data = loadtxt(filename)
+    filename = sys.argv[1]
+    try:
+        d1,d2 = loadtxt(filename)
+        data = d2-d1
+    except:
+        data = loadtxt(filename)
         
     range = [-80,80]
     bins = 100
     
     
-    data = random.random(300) * 59
+    #data = random.random(300) * 59
     app = wx.App(False)
     f = InstrumentFrame()
     f.bins = bins
