@@ -139,11 +139,19 @@ class InstrumentFrame(wx.Frame):
         # # buttonbox.Add(btn, 0, wx.ALL | wx.EXPAND, border = 4)
         
         ## Fit
+        listFunc = wx.ComboBox(self, style = wx.CB_READONLY)
+        listFunc.Append("Exponential")
+        listFunc.Append("Lorentzian")
+        listFunc.Append("Gaussian")
+        listFunc.SetSelection(0)
+        
+        buttonbox.Add(listFunc, 0, wx.ALL | wx.EXPAND, border = 4)
+        
         btn = wx.Button(self, label= "Fit")
         btn.SetFont( self.buttonF )
     
         def callbackWrap(evt):
-            self.fitData()
+            self.fitData(listFunc.GetValue())
             self.setData(self.data)
         
         ## Bind the event
@@ -163,7 +171,7 @@ class InstrumentFrame(wx.Frame):
         self.Bind(wx.EVT_BUTTON, callbackWrap, btn)
         
         rangebox = wx.BoxSizer(wx.HORIZONTAL)
-        rangebox.Add(wx.StaticText(self, label = "Min (ns)"))
+        rangebox.Add(wx.StaticText(self, label = "Min (ns) "))
         rangebox.Add(self.txtRange0)
         buttonbox.Add(rangebox)
         rangebox = wx.BoxSizer(wx.HORIZONTAL)
@@ -171,8 +179,6 @@ class InstrumentFrame(wx.Frame):
         rangebox.Add(self.txtRange1)
         buttonbox.Add(rangebox)
         buttonbox.Add(btn)
-
-        
         
         self.box.Add(buttonbox)
         
@@ -261,8 +267,9 @@ class InstrumentFrame(wx.Frame):
         # Histogram
         
         hist, bin_edges = histogram(data, self.bins, self.range,density = True)
-        axis.plot(bin_edges[:-1], hist, 'k')
-        #x = (bin_edges[1:]+bin_edges[:-1])/2
+        
+        x = (bin_edges[1:]+bin_edges[:-1])/2
+        axis.plot(x, hist, 'k')
         axis.hold(True)
         #hist, bin_edges = histogram(data, self.bins*10, range)
         #axis.plot(bin_edges[:-1], hist*10, 'g')
@@ -285,34 +292,37 @@ class InstrumentFrame(wx.Frame):
         self.plot.canvas.draw()            
         #self.slice_plot.canvas.draw()
         
-    def fitData(self):
+    def fitData(self, type = "Gaussian"):
         delta = fitting.Parameter(1.,'d')
         x0 = fitting.Parameter(0.,'x0')
-        a = fitting.Parameter(10.,'a')
+        a = fitting.Parameter(amax(self.hist),'a')
         
-        lorentz = lambda x: a() / ( (delta()/2)**2 + (x-x0())**2)
+        fitfunc = {"Lorentzian": lambda x: 4*a()/delta() / ( (delta()/2)**2 + (x-x0())**2),
+                    "Exponential": lambda x: a() * exp( -abs(x-x0()) * 2 * log(2) / delta() ),
+                    "Gaussian": lambda x: a() * exp( - (x-x0())**2 * 2 * log(2) / delta()**2 )}
+        print type
         x = (self.bin_edges[1:]+self.bin_edges[:-1])/2.
-        fitting.fit(lorentz, [delta,x0,a], x, self.hist,1)
+        fitting.fit(fitfunc[type], [delta,x0,a], x, self.hist,1)
 
-        self.infoFit = "FWHM = %.2f\nx0 = %.2f\nA = %.2f"%(delta(),x0(),a()) 
+        self.infoFit = "%s fit:\nFWHM = %.2f ns; x0 = %.2f ns; Amax = %.2f"%(type, delta(),x0(),a()) 
         
-        self.fitted = linspace(x[0],x[-1],100), lorentz(linspace(x[0],x[-1],100))
+        self.fitted = linspace(x[0],x[-1],500), fitfunc[type](linspace(x[0],x[-1],500))
         
         
 if __name__ == "__main__":
     
-    filename = sys.argv[1]
-    try:
-        d1,d2 = loadtxt(filename)
-        data = d2-d1
-    except:
-        data = loadtxt(filename)
+    # filename = sys.argv[1]
+    # try:
+        # d1,d2 = loadtxt(filename)
+        # data = d2-d1
+    # except:
+        # data = loadtxt(filename)
         
     range = [-80,80]
     bins = 100
     
     
-    
+    data = random.random(300) * 59
     app = wx.App(False)
     f = InstrumentFrame()
     f.bins = bins
