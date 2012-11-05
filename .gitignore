@@ -1,6 +1,7 @@
 # Compiled Python
 
 *.pyc
+_netrc
 
 # Remove Temporary Spynx Directory
 _*
