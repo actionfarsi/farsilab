@@ -32,16 +32,16 @@ def test():
     r = inst.ask('MMEM:DATA? "10ns.wfm"')
     
     d = decodeWaveform(r)
-    r = encodeWaveform(d)
+    r = encodeWaveform(numpy.sin(numpy.linspace(0,6,100)))
     
     buffer_size_s = str(len(r))
     buffer_header = '#' + str(len(buffer_size_s)) + buffer_size_s
     print buffer_header
     
-    inst.write('MMEM:DATA "10nsc.wfm",' + buffer_header + r)
+    inst.write('MMEM:DATA "10Sinsc.wfm",' + buffer_header + r)
     #pl.plot(d)
     #pl.show()
     
     
 test()
-raw_input()
+#raw_input()
