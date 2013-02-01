@@ -573,34 +573,34 @@ def DaVincify(ax, mag=1.0,
     return ax
     
     
-np.random.seed(0)
+# np.random.seed(0)
 
-ax = pl.axes()
+# ax = pl.axes()
 
-x = np.linspace(-0.01, 1.1, 50)
-def cannon(x, angle):
-    return x / np.tan(angle) - 0.5 * x**2/(np.sin(angle)**2)
+# x = np.linspace(-0.01, 1.1, 50)
+# def cannon(x, angle):
+    # return x / np.tan(angle) - 0.5 * x**2/(np.sin(angle)**2)
     
-ax.plot(x, cannon(x,0.3)*2, lw=1)
-ax.plot(x, cannon(x,0.45)*2, lw=1)
-ax.plot(x, cannon(x,0.6)*2, lw=1)
-ax.plot(x, cannon(x,0.75)*2,'k', lw=1)
-ax.plot(x, cannon(x,0.9)*2,'b', lw=1)
+# ax.plot(x, cannon(x,0.3)*2, lw=1)
+# ax.plot(x, cannon(x,0.45)*2, lw=1)
+# ax.plot(x, cannon(x,0.6)*2, lw=1)
+# ax.plot(x, cannon(x,0.75)*2,'k', lw=1)
+# ax.plot(x, cannon(x,0.9)*2,'b', lw=1)
 
-#ax.text(0.9, 0.4, "embarrassment")
+# #ax.text(0.9, 0.4, "embarrassment")
 
-ax.set_title('Study of the trajectory of a cannon ball')
-ax.set_xlabel('Distance')
-ax.set_ylabel('Height')
+# ax.set_title('Study of the trajectory of a cannon ball')
+# ax.set_xlabel('Distance')
+# ax.set_ylabel('Height')
 
-ax.legend(loc='top right', fancybox = True)
+# ax.legend(loc='top right', fancybox = True)
 
-ax.set_xlim(-0.05, 1.2)
-ax.set_ylim(-.1, 1.0)
-pl.draw()
+# ax.set_xlim(-0.05, 1.2)
+# ax.set_ylim(-.1, 1.0)
+# pl.draw()
 
-#XKCDify the axes -- this operates in-place
-DaVincify(ax, xaxis_loc=0.0, yaxis_loc=0.0,
-        xaxis_arrow='+', yaxis_arrow='+',
-        expand_axes=True)
-pl.show()
+# #XKCDify the axes -- this operates in-place
+# DaVincify(ax, xaxis_loc=0.0, yaxis_loc=0.0,
+        # xaxis_arrow='+', yaxis_arrow='+',
+        # expand_axes=True)
+# pl.show()
