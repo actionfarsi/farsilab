@@ -26,12 +26,16 @@ import threading
 dll = windll.LoadLibrary("nicaiu.dll")
 from nidaq import *   # Contains constants
 
+def printf(x):
+    print x
+
 ## Shorthand for the task
 class FreqTask():
     def __init__(self, channel, sampling_time = 0.5, count = False, debug = False):
-        self.n_samples = 1000                                  # Buffer size (only one reading at time)
+        self.n_samples = 4000                                  # Buffer size (only one reading at time)
         self.channel = channel
         self.sampling_time = sampling_time
+        self.sample_rate = 1000
         
         self.handle = c_int(0)                                 # DAQmx TaskHandle
         self.name = "FreqCounter on ch " + str(channel)        # Task Name generated on the fly
@@ -47,7 +51,7 @@ class FreqTask():
         # Create the task
         if debug: print "Creating the task  ", 
         
-        #First create the task and get a handle to the task that will be used for all subsequenct operations
+        # First create the task and get a handle to the task that will be used for all subsequenct operations
         self.error(dll.DAQmxCreateTask(self.name, byref(self.handle)))
         
         if not count:
@@ -61,14 +65,23 @@ class FreqTask():
         
         else: ## TODO Check if it's properly woriking
             # Create counting reading
-            self.error(dll.DAQmxCreateCICountEdgesChan(self.handle, self.physical_channel, self.channel_name,
-                    DAQmx_Val_Rising , c_uint32(0), DAQmx_Val_CountUp) )
-            
+            self.error(dll.DAQmxCreateCICountEdgesChan(self.handle, self.physical_channel,
+                                                       self.channel_name,
+                                                       DAQmx_Val_Rising ,
+                                                       c_uint32(0),
+                                                       DAQmx_Val_CountUp) )
+                
             #####
-            # self.error(dll.DAQmxCfgSampClkTiming (self.handle, None, c_double(1e3),
-                    # DAQmx_Val_Rising, DAQmx_Val_FiniteSamps,c_uint64(self.n_samples)))
+            #self.error(dll.DAQmxCfgSampClkTiming (self.handle, "",
+            #                                      c_double(self.sample_rate),
+            #                                      DAQmx_Val_Rising,
+            #                                      DAQmx_Val_ContSamps,
+            #                                      c_ulonglong(self.n_samples)) )
                     
-            #self.error(dll.DAQmxCfgImplicitTiming(self.handle,DAQmx_Val_ContSamps,c_uint64(self.n_samples)))
+            
+                            
+            # self.error(dll.DAQmxCfgImplicitTiming(self.handle,
+                                                  # DAQmx_Val_ContSamps,c_uint64(self.n_samples)))
 
     def read(self, to_read = -1):
         bit_read = c_int()
@@ -81,9 +94,9 @@ class FreqTask():
             print ""
         #if self.count:
         #    return [float(i) for i in self.data]
-        return float(self.data[0])
+        return [float(i) for i in self.data[:bit_read.value] ]
     
-    def thread_read(self, callback = lambda x: print x, to_read = -1):
+    def thread_read(self, callback = printf, to_read = -1):
         """ To execute the reading in a thread for parallel acquisition """
         ## TODO Check if internal DAQmx callback method is better
         def run():
