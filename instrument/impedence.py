@@ -3,8 +3,8 @@ from numpy import *
 from matplotlib.pylab import *
 
 from instrument_panel import InstrumentApp
-#ins = visa.Instrument('com5')
-#ins.write('++addr 15')
+ins = visa.Instrument('com5')
+ins.write('++addr 15')
 
 data = []
 
