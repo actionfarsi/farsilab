@@ -15,10 +15,11 @@ const byte DECREASE =  B00001000;  // Reset opcode command
 // the other you need are controlled by the SPI library):
 const int TEMP1_PIN = 3;
 const int TEMP2_PIN = 2;
-const int LED1_PIN = 7;
-const int LED2_PIN = 8;
-const int CURRENT1_PIN = 0;
-const int CURRENT2_PIN = 1;
+const int LED1_PIN = 6;
+const int LED2_PIN = 7;
+const int CURRENT1_PIN = 2;
+const int CURRENT2_PIN = 3;
+const int COMMMAND_PIN = 4;
 
 const double RW = 2;
 
@@ -27,8 +28,8 @@ double  inputT1, outputT1, setpoint1;
 double  inputT2, outputT2, setpoint2;
 
 //Specify the links and initial tuning parameters
-PID tempPID1(&inputT1, &outputT1, &setpoint1, 2, 5, 1, DIRECT);
-PID tempPID2(&inputT2, &outputT2, &setpoint2, 2, 5, 1, DIRECT);
+//PID tempPID1(&inputT1, &outputT1, &setpoint1, 2, 5, 1, DIRECT);
+//PID tempPID2(&inputT2, &outputT2, &setpoint2, 2, 5, 1, DIRECT);
 
 
 volatile int state = LOW;
@@ -53,15 +54,15 @@ void setup() {
   setpoint1 = 300;
   setpoint2 = 30;
   //turn the PID on
-  tempPID1.SetMode(AUTOMATIC);
-  tempPID2.SetMode(AUTOMATIC);
+  //tempPID1.SetMode(AUTOMATIC);
+  //tempPID2.SetMode(AUTOMATIC);
   
   // Configure Leds
   pinMode(LED1_PIN, OUTPUT);
   pinMode(LED2_PIN, OUTPUT);
 
-  pinMode(2, OUTPUT);  
-  pinMode(3, OUTPUT);
+  pinMode(CURRENT1_PIN, OUTPUT);  
+  pinMode(CURRENT1_PIN, OUTPUT);
 }
 
 
@@ -79,15 +80,15 @@ void setResistance(int res, int rn){
 
 
 void loop() {
-  Serial.print('R1');
-  analogWrite(2, 0);
-  analogWrite(3, 200);
+  //Serial.print('R1');
+  //analogWrite(CURRENT1_PIN, 254);
+  //analogWrite(CURRENT2_PIN, 0);
   setResistance(150, 0);
   setResistance(3000, 1);
   digitalWrite(LED1_PIN, HIGH);
   digitalWrite(LED2_PIN, LOW);
   delay(3000);
-  Serial.print('R2');
+  //Serial.print('R2');
   setResistance(300, 0);
   setResistance(1500, 1);
   digitalWrite(LED1_PIN, LOW);
@@ -95,7 +96,8 @@ void loop() {
   delay(3000);
   
   if (Serial.available()){
-    
-    Serial.flush();
+    SPI.transfer(READ1);
+    byte n = SPI.transfer(NULL);
+    Serial.print(n);
   }
 }
