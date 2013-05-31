@@ -24,7 +24,7 @@ sample_mode_names = {'continuous': DAQmx_Val_ContSamps,
 
 #### Types
 
-nidaq      = windll.LoadLibrary("nicaiu.dll") ## ctypes.windll.nicaiu
+nidaq      = ctypes.windll.LoadLibrary("nicaiu.dll") ## ctypes.windll.nicaiu
 int32      = ctypes.c_long
 uint32     = ctypes.c_ulong
 uint64     = ctypes.c_ulonglong
@@ -554,7 +554,7 @@ class OutputTask(Task):
     def add_co_pulse_channel_time(self, channel, channel_name='',
                                   units=DAQmx_Val_Seconds,
                                   idle_state=DAQmx_Val_Low,
-                                  lowTime, highTime):
+                                  lowTime=0.5, highTime=0.5):
                                   
         channel = norm_channel(channel, self.device, 'counter', 'output')
         CHK(nidaq.DAQmxCreateCOPulseChanTime(self.task_handle,
@@ -563,7 +563,7 @@ class OutputTask(Task):
                                              int32(units),
                                              int32(idle_state),
                                              float64(lowTime),
-                                             float64(highTime),)
+                                             float64(highTime),))
         return (self.number_of_channels - 1)
 
     def write_analog_float64(self, data, auto_start=False, timeout=10.0):

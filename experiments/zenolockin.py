@@ -10,8 +10,11 @@ The same trigger starts voltage acquisiton and shutter
  
 """
 
+import sys
+sys.path.append(r"D:\Cornell\farsilab")
+
 import visa  ## PyVisa
-import daq   ## PyDaq (from 
+import instrument.daq   ## PyDaq (from 
 
 from numpy import *
 from matplotlib import pylab as pl
@@ -51,7 +54,7 @@ def run():
     readvolt_t.start() # Start acquisiton
     
     voltage = readvolt.read_analog_scalar_float64()
-    wavelength = linspace(w_range[0],w_range[1], len(voltage) # hopefully start and stop are synced
+    wavelength = linspace(w_range[0],w_range[1], len(voltage) )# hopefully start and stop are synced
     
     return c_[wavelength, voltage]
     
