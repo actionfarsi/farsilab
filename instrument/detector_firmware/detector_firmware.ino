@@ -17,8 +17,8 @@ const int TEMP1_PIN = 3;
 const int TEMP2_PIN = 2;
 const int LED1_PIN = 6;
 const int LED2_PIN = 7;
-const int CURRENT1_PIN = 2;
-const int CURRENT2_PIN = 3;
+const int CURRENT1_PIN = 3;
+const int CURRENT2_PIN = 5;
 const int CHIPS_PIN = 4;
 
 const double RW = 2;
@@ -44,7 +44,8 @@ void setup() {
   // Configure SPI transmission
   SPI.setDataMode(SPI_MODE0);
   SPI.setBitOrder(MSBFIRST);
-  digitalWrite(5, LOW);  
+  SPI.setClockDivider(SPI_CLOCK_DIV2);
+  //digitalWrite(5, LOW);  
   
   
   // Init and configure PID
@@ -62,7 +63,7 @@ void setup() {
   pinMode(LED2_PIN, OUTPUT);
 
   pinMode(CURRENT1_PIN, OUTPUT);  
-  pinMode(CURRENT1_PIN, OUTPUT);
+  pinMode(CURRENT2_PIN, OUTPUT);
   pinMode(CHIPS_PIN, OUTPUT);
 }
 
@@ -83,7 +84,7 @@ void setResistance(int res, int rn){
 void readSPI(int addr = 0){
     byte b_add = addr << 4;
     byte n;
-    digitalWrite(CHIPS_PIN, HIGH);
+    digitalWrite(CHIPS_PIN, LOW);
     Serial.print(addr);
     Serial.print(" - SPI: ");
     //Serial.print(READ | b_add, BIN);
@@ -91,35 +92,35 @@ void readSPI(int addr = 0){
     n = SPI.transfer(READ | b_add);
     Serial.print(n, HEX);
     n = SPI.transfer(NULL);
-    Serial.print(n, HEX);
-    n = SPI.transfer(NULL);
     Serial.println(n, HEX);
-    digitalWrite(CHIPS_PIN, LOW);
+    digitalWrite(CHIPS_PIN, HIGH);
 }
+
 
 
 void loop() {
   byte n;
   Serial.println("R  1");
-  //analogWrite(CURRENT1_PIN, 254);
-  //analogWrite(CURRENT2_PIN, 0);
-  setResistance(150, 0);
-  setResistance(3000, 1);
+  analogWrite(CURRENT1_PIN, 0);
+  analogWrite(CURRENT2_PIN, 255);
+  //setResistance(150, 0);
+  //setResistance(3000, 1);
   digitalWrite(LED1_PIN, HIGH);
   digitalWrite(LED2_PIN, LOW);
-  delay(2000);
+//  delay(2000);
   
-  readSPI(0);
-  readSPI(1);
-  readSPI(2);
-  readSPI(4);
-  readSPI(5);
+  //readSPI(0);
+  //readSPI(1);
  
-  Serial.println("R  2");
-  setResistance(300, 0);
-  setResistance(1500, 1);
-  digitalWrite(LED1_PIN, LOW);
-  digitalWrite(LED2_PIN, HIGH);
-  delay(2000);
+  //Serial.println("R  2");
+  //setResistance(300, 0);
+  //setResistance(1500, 1);
+  //digitalWrite(LED1_PIN, LOW);
+  //digitalWrite(LED2_PIN, HIGH);
+//  delay(2000);
  
+  //readSPI(0);
+  //readSPI(1);
+
 }
+
