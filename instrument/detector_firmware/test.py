@@ -3,6 +3,8 @@
 """
 
 import visa
+from numpy import *
+from matplotlib.pylab import *
 
 com = visa.SerialInstrument("COM13")
 
@@ -19,13 +21,18 @@ def testTemperature():
         while True:
             l = com.read()
             l = l.split()
+            print l
             # Line must start with a 'T'
             if l[0] != 'T':
                 break
-            data.appen(int(l[1]), int(l[2]), int(l[3]))
+            data.append(int(l[1]), int(l[2]), int(l[3]))
                 
     except visa.TimeoutException:
         pass
         
-    print data
+    data = array(data)
+    plot(data[0], data[1])
+    plot(data[0], data[2])
+    show()
+    
 
