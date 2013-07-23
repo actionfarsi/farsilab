@@ -96,31 +96,84 @@ void readSPI(int addr = 0){
     digitalWrite(CHIPS_PIN, HIGH);
 }
 
-
-
-void loop() {
+/* Test routine
+turn temp on and off
+change values of resistors
+write the resistor status back
+*/
+void test() {
   byte n;
+  
+  // Switch between two configurations
   Serial.println("R  1");
   analogWrite(CURRENT1_PIN, 0);
-  analogWrite(CURRENT2_PIN, 255);
-  //setResistance(150, 0);
-  //setResistance(3000, 1);
+  analogWrite(CURRENT2_PIN, 0);
+  setResistance(0, 0);
+  setResistance(3000, 1);
   digitalWrite(LED1_PIN, HIGH);
   digitalWrite(LED2_PIN, LOW);
-//  delay(2000);
+  delay(1000);
   
-  //readSPI(0);
-  //readSPI(1);
- 
-  //Serial.println("R  2");
-  //setResistance(300, 0);
-  //setResistance(1500, 1);
-  //digitalWrite(LED1_PIN, LOW);
-  //digitalWrite(LED2_PIN, HIGH);
-//  delay(2000);
- 
-  //readSPI(0);
-  //readSPI(1);
+  // Read resistor state and send through serial
+  readSPI(0);
+  readSPI(1);
 
+  // Switch to the second configuration
+  Serial.println("R  2");
+  setResistance(255, 0);
+  setResistance(1500, 1);
+  digitalWrite(LED1_PIN, LOW);
+  digitalWrite(LED2_PIN, HIGH);
+  delay(1000);
+ 
+  readSPI(0);
+  readSPI(1);
+}
+
+int out_v = 0;
+
+void testTemp(){
+  // Ramp the current and measure the temperatur
+  out_v += 5;
+  if (out_v > 255){
+    out_v = 0;
+  }
+  analogWrite(CURRENT1_PIN, out_v);
+  analogWrite(CURRENT2_PIN, out_v);
+  delay(500)
+  // Read temperature  
+  int t1 = analogRead(TEMP1_PIN);
+  int t2 = analogRead(TEMP2_PIN);
+  // Print temperature on serial
+  Serial.print("T ");
+  Serial.print(out_v);
+  Serial.print(" ");
+  Serial.print(t1);
+  Serial.print(" ");
+  Serial.print(t2);
+  Serial.println("");  
+  
+  if (t1 > 100) || (t2 > 100){
+    // If temperature is too high, abort
+    analogWrite(CURRENT1_PIN, 0);
+    analogWrite(CURRENT2_PIN, 0);
+    out_v = -1;
+    for (int i = 0; i <5; i++){ 
+      digitalWrite(LED1_PIN, HIGH);
+      digitalWrite(LED2_PIN, LOW);
+      delay(200)
+      digitalWrite(LED1_PIN, LOW);
+      digitalWrite(LED2_PIN, HIGH);
+      delay(200)
+    }
+    digitalWrite(LED1_PIN, LOW);
+    digitalWrite(LED2_PIN, LOW);
+  }
+  
+
+}
+
+void loop() {
+  test();
 }
 
