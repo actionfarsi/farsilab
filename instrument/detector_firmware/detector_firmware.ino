@@ -101,7 +101,7 @@ turn temp on and off
 change values of resistors
 write the resistor status back
 */
-void test() {
+void testResistor() {
   byte n;
   
   // Switch between two configurations
@@ -173,7 +173,23 @@ void testTemp(){
 
 }
 
+char command_byte = 0;
+char state = 'R'; 
+
 void loop() {
-  test();
+  if (Serial.available() > 0) {
+    // read the incoming byte:
+    command_byte = Serial.read();
+    if (command_byte == 'T') state = 'T';
+    if (command_byte == 'R') state = 'R';
+    // Loop for the state
+    switch (state){
+      case 'T': testTemp();        
+        break;
+      case 'R': testResistor();        
+        break;
+    }
+    Serial.flush();
+
 }
 
