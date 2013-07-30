@@ -1,3 +1,7 @@
+"""
+forked from soemraws/py-nidaq
+"""
+
 import ctypes
 import numpy
 from warnings import warn

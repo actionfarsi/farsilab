@@ -1,0 +1,388 @@
+#Testing the cuFFT process with the Nvidia Tesla
+
+#   Programmed and copyright by Sam Schrauth
+#   Advisor: Alex Gaeta
+#   Quantum and Nonlinear Photonics Group
+#   School of Applied and Engineering Physics
+#   Cornell Univeristy    2011
+
+from numpy import *
+import time
+
+import pycuda.autoinit
+import pycuda.gpuarray as gpuarray
+
+from pycuda import cumath
+from pyfft.cuda import Plan
+
+N_Z = 400000 ##maximum z step
+NMAX = 8192
+NMAXSQRT = 64
+pi = 3.141592
+
+## Default input parameter specification
+r=0.5
+nz=1
+
+#void fileout (char *, double , double **, long , long );
+#void fileout (char *, double , complex<double> *, long , long );
+#void to_real2d(int , int , complex<double> **, double **);//complex to real data
+#void to_comp2d(int , int , complex<double> **, double **);//real to complex data
+
+## complex math functions from oceanFFT
+##float2 conjugate(float2 arg)
+##    return make_float2(arg.x, -arg.y);
+
+##__device__
+##float2 complex_exp(float arg)
+##    return make_float2(cosf(arg), sinf(arg));
+
+##__device__
+##float2 complex_add(float2 a, float2 b)
+##    return make_float2(a.x + b.x, a.y + b.y);
+
+##__device__
+##float2 complex_mult(float2 ab, float2 cd)
+##    return make_float2(ab.x * cd.x - ab.y * cd.y, ab.x * cd.y + ab.y * cd.x); 
+
+def main():
+    ## Default input parameter specification
+    r=1.0
+    nz=100
+    G=1.8962
+
+    print("Starting\n")
+    start_time = time.time()
+
+    print("Creating Initial Profile\n")
+    ##simulation parameter
+    n = (1024,1024)
+    Xmax= (5.0,5.0) #  grid and window
+
+	double dx = 2.*Xmax/(double)nx;
+	double dy = 2.*Ymax/(double)ny;
+
+   double dz=0.003;
+   double beta = 5.;
+
+    printf("Enter step size [Ldf]\n");
+	scanf("%lf",&dz);
+    printf("Enter number of steps \n");
+	scanf("%lf",&nz);
+	nz=(int)nz;
+	printf("Enter number of critical powers\n");
+	scanf("%lf",&beta);
+	double gamma=G*beta;
+
+   //x, fx, and u arrays
+   double *x, *y, *kx, *ky, **U_m, **II_out, **IM_out, **IF_out, **ufft, **ufft_pc, *keepMax;
+
+   x=dvector(0,nx-1);
+   y=dvector(0,ny-1);
+   kx=dvector(0,nx-1);
+   ky=dvector(0,ny-1);
+   keepMax=dvector(0,(long)nz-1);
+
+   II_out=dmatrix(0,nx-1,0,ny-1);
+   U_m=dmatrix(0,nx-1,0,2*ny-1);
+   IM_out=dmatrix(0,nx-1,0,ny-1);
+   IF_out=dmatrix(0,nx-1,0,ny-1);
+   ufft=dmatrix(0,nx-1,0,2*ny-1);
+   ufft_pc=dmatrix(0,nx-1,0,2*ny-1);
+
+	for (j=0;j<nx;j++) {
+		x[j]=(double)(-nx/2+j+1)*dx;
+		kx[j]=(j < nx/2 )?(pi*(double)(j))*(1./dx/((double)(nx))): (pi*(double)(j-nx))*(1./dx/((double)(nx)));//fx_s=1/dx, dfx= fx_s/N-> d omega= 2pi dfx		
+		kx[j]=kx[j]*kx[j];
+	}
+	for (j=0;j<ny;j++) {
+		y[j]=(double)(-ny/2+j+1)*dy;
+		ky[j]=(j < ny/2 )?(pi*(double)(j))*(1./dy/((double)(ny))): (pi*(double)(j-ny))*(1./dy/((double)(ny)));
+		ky[j]=ky[j]*ky[j];
+	}
+
+	complex<double> **u, **u_m, **u_f;
+	u=compmatrix(0,nx-1,0,ny-1);
+	u_m=compmatrix(0,nx-1,0,ny-1);
+	u_f=compmatrix(0,nx-1,0,ny-1);
+	
+	for (j=0;j<nx;j++) {
+		for (k=0;k<ny;k++) {
+			u[j][k] = exp(-1.0*(x[j]*x[j]+y[k]*y[k])/r);
+			II_out[j][k] = real(u[j][k])*real(u[j][k])+imag(u[j][k])*imag(u[j][k]);
+		}
+	}
+
+	fileout ("Before Transforms",0.,II_out, nx, ny);
+	to_real2d(nx,ny,u,ufft);
+
+	fileout("ReFormated before Transforms",0.,ufft, nx, 2.*ny);
+
+	int steps=2.*nz;
+
+	printf("Step size %g [Ldf]\n", dz);
+	printf("Number of critical powers %g\n", beta);
+	printf("Number of steps %i\n", (int) nz);
+
+
+// cuFFT planning and preparation
+   void runCuda();
+   cudaSetDevice(0);
+	
+	int devID;
+	   cudaDeviceProp props;
+   cudaGetDevice(&devID);
+   cudaGetDeviceProperties(&props, devID);
+	
+   printf("Device %d: \"%s\" with Compute %d.%d capability\n", devID, props.name, props.major, props.minor);
+	
+   printf("Creating FFT Plans\n");
+	
+   int numBlocks,threadsPerBlock;
+   cufftHandle plan;
+   cufftDoubleComplex *u_gpu; //, *fx_gpu; 
+   double *cukx;
+   double *cuky;
+   double *cukeepMax;
+   cufftDoubleComplex *U_gpu; // *diffraction_gpu;
+   if (cufftPlan2d(&plan, nx, ny, CUFFT_Z2Z)!= cudaSuccess)
+	   printf("Error Plan\n");
+
+   printf("Allocating memory on device\n");
+   if (cudaMalloc((void **)&u_gpu, sizeof(cufftDoubleComplex)*nx*ny)!= cudaSuccess)
+	   printf("Error allocate \n");
+   if (cudaMalloc((void **)&U_gpu, sizeof(cufftDoubleComplex)*nx*ny)!= cudaSuccess)
+	   printf("Error allocate 2 \n");
+
+   printf("Allocating kx, ky & keepMax\n");
+   if (cudaMalloc((void **)&cukx, sizeof(double)*nx)!= cudaSuccess)
+	   printf("Error allocate \n");
+   if (cudaMalloc((void **)&cuky, sizeof(double)*ny)!= cudaSuccess)
+	   printf("Error allocate \n");
+   if (cudaMalloc((void **)&cukeepMax, sizeof(double)*nz)!= cudaSuccess)
+	   printf("Error allocate \n");
+
+  
+   // cudaMalloc((void **)&fx_gpu, sizeof(cufftDoubleReal)*nx);
+
+	// preparing the data to transfer to the device 
+   // changing from a 2d arrey into a 1d arrey
+	complex<double> 
+		   *h_in,
+		   *h_out;
+	
+	h_in =  (complex<double> *)malloc(nx * ny * sizeof(complex<double>));
+	h_out = (complex<double> *)malloc(nx * ny * sizeof(complex<double>));
+	k=0;
+	for (l=0;l<nx;l++)
+		for (j=0;j<ny;j++)
+		{
+			h_in[k]=u[l][j];
+			IM_out[l][j]=real(u[l][j]);
+			k++;
+		}
+	fileout("A",0.,h_in,nx, ny);
+
+ if (cudaMemcpy(u_gpu, h_in, sizeof(complex<double>)*nx*ny, cudaMemcpyHostToDevice) == cudaSuccess) // copy field from CPU memory to GPU memory for propagation
+	printf("send %i \n",u[1][1]); 
+ else
+	 printf("Error Set\n");
+ 
+ if (cudaMemcpy(cukx, kx, sizeof(double)*nx, cudaMemcpyHostToDevice) == cudaSuccess) // copy field from CPU memory to GPU memory for propagation
+	printf("sent kx \n"); 
+ else
+	 printf("Error Set\n");
+ if (cudaMemcpy(cuky, ky, sizeof(double)*ny, cudaMemcpyHostToDevice) == cudaSuccess) // copy field from CPU memory to GPU memory for propagation
+	printf("sent ky \n"); 
+ else
+	 printf("Error Set\n");
+
+  //cudaMemcpy(u_f, u_gpu, sizeof(cufftDoubleComplex)*2*nx*ny, cudaMemcpyDeviceToHost);
+
+	  //fileout("After Copy to Device",0.,ufft_pc, nx, 2.*ny);
+	
+	double *pdblArrayInGPU;
+    printf("Starting %i FFT pairs\n", steps);
+    start = clock();
+
+    for (l=0; l<nz; l++) {
+		// FFT into the spatial frequency domain
+		if (cufftExecZ2Z(plan, u_gpu, U_gpu, CUFFT_FORWARD) != cudaSuccess)
+			printf("Error FFT\n");
+		cudaDeviceSynchronize();
+
+		//cast to double
+		pdblArrayInGPU = (double *)U_gpu;
+		runPhaseMulti(pdblArrayInGPU, nx, ny, cukx, cuky, dz/2.0);
+		cudaDeviceSynchronize();
+
+		// inverse FFT into space domain
+		if (cufftExecZ2Z(plan, U_gpu, u_gpu, CUFFT_INVERSE) != cudaSuccess)
+			printf("Error FFTI\n");
+		cudaDeviceSynchronize();
+
+		pdblArrayInGPU = (double *)u_gpu;
+		runNormalizeAfterFFT(pdblArrayInGPU, nx, ny);
+		cudaDeviceSynchronize();
+		
+		//Nonlinear step in space domain
+		runNonlinear(pdblArrayInGPU, nx, ny, gamma, dz, cukeepMax, l);
+		cudaDeviceSynchronize();
+
+		if (cufftExecZ2Z(plan, u_gpu, U_gpu, CUFFT_FORWARD) != cudaSuccess)
+			printf("Error FFT\n");
+		cudaDeviceSynchronize();
+
+		//cast to double
+		pdblArrayInGPU = (double *)U_gpu;
+		runPhaseMulti(pdblArrayInGPU, nx, ny, cukx, cuky, dz/2.0);
+		cudaDeviceSynchronize();
+
+		// inverse FFT into space domain
+		if (cufftExecZ2Z(plan, U_gpu, u_gpu, CUFFT_INVERSE) != cudaSuccess)
+			printf("Error FFTI\n");
+		cudaDeviceSynchronize();
+		
+		pdblArrayInGPU = (double *)u_gpu;
+		runNormalizeAfterFFT(pdblArrayInGPU, nx, ny);
+		cudaDeviceSynchronize();
+
+
+    }
+
+	printf("Finished FFTs\n");
+	end = clock();
+	time_SEC = (end-start)/CLK_TCK;
+    printf("The time was %g seconds\n", time_SEC);
+	
+	if (cudaMemcpy(keepMax, cukeepMax, sizeof(double)*nz, cudaMemcpyDeviceToHost)!= cudaSuccess)
+		printf("Error Get\n");
+	
+	fileout("KeepMax",0.,keepMax,nz);
+
+
+	if (cudaMemcpy(h_out, u_gpu, sizeof(cufftDoubleComplex)*nx*ny, cudaMemcpyDeviceToHost)!= cudaSuccess)
+		printf("Error Get\n");
+	
+  
+	//restor to u_f
+    fileout("E",0.,h_out,nx, ny);
+	to_comp2d(nx,ny,u_m,U_m);
+
+	l=0;
+  for(j=0;j<nx;j++) {
+	  for(k=0;k<ny;k++) {
+		  u_f[j][k]=h_out[l];
+		  IM_out[j][k] = real(u_m[j][k])*real(u_m[j][k])+imag(u_m[j][k])*imag(u_m[j][k]);
+		  IF_out[j][k] = real(u_f[j][k])*real(u_f[j][k])+imag(u_f[j][k])*imag(u_f[j][k]);
+		  l++;
+	  }
+  } 
+  
+  //memory clean-up
+
+  printf("Memory Cleanup\n");
+
+  free_dvector(x,0,nx-1);
+  free_dvector(kx,0,nx-1);
+  free_dvector(y,0,ny-1);
+  free_dvector(ky,0,ny-1);
+  free_dvector(keepMax,0,nz-1);
+
+  free_dmatrix(II_out,0,nx-1,0,ny-1);
+  free_dmatrix(U_m,0,nx-1,0,2.*ny-1);
+  free_dmatrix(IM_out,0,nx-1,0,ny-1);
+  free_dmatrix(IF_out,0,nx-1,0,ny-1);
+  free_dmatrix(ufft,0,nx-1,0,2.*ny-1);
+  free_dmatrix(ufft_pc,0,nx-1,0,2.*ny-1);
+
+  free_compmatrix(u,0,nx-1,0,ny-1);
+  free_compmatrix(u_m,0,nx-1,0,ny-1);
+  free_compmatrix(u_f,0,nx-1,0,ny-1);
+
+  cufftDestroy(plan);
+  cudaFree(u_gpu);
+  cudaFree(U_gpu);
+  cudaFree(cukx);
+  cudaFree(cuky);
+  cudaFree(cukeepMax);
+  // cudaFree(diffraction_gpu);
+  // cudaFree(fx_gpu);
+
+  //time_h = (end-start)/CLK_TCK/3600;
+  //time_HR = floor(time_h);
+  //time_MIN = floor((time_h-time_HR)*60.0+0.5);
+  printf("Done!\n");
+
+  _getch();
+  return 0;
+ }
+
+void fileout (char *filenm, double d, double **b, int n_x, int n_y ) {
+    long j,k;
+    FILE *outfile;
+   outfile=fopen(filenm,"w");
+   if (outfile==NULL) {
+    printf("Couldn't open %s for output.\n",filenm);
+   } else {
+      for (j=0;j<n_x;j++) {
+         for (k=0;k<n_y;k++) 
+           fprintf(outfile,"%g\t",b[j][k]);
+         fprintf(outfile,"\n");
+     }
+        fclose (outfile);
+   }
+ }
+
+
+void fileout (char *filenm, double d, complex<double> *b, int n_x, int n_y ) {
+    long j,k;
+    FILE *outfile;
+   outfile=fopen(filenm,"w");
+   if (outfile==NULL) {
+    printf("Couldn't open %s for output.\n",filenm);
+   } else {
+      for (j=0;j<n_x;j++) {
+         for (k=0;k<n_y;k++) 
+			 fprintf(outfile,"%g\t",b[j*n_y+k].imag()*b[j*n_y+k].imag()+b[j*n_y+k].real()*b[j*n_y+k].real());
+         fprintf(outfile,"\n");
+     }
+        fclose (outfile);
+   }
+ }
+
+void fileout (char *filenm, double d, double *b, int n_x) {
+    long k;
+    FILE *outfile;
+   outfile=fopen(filenm,"w");
+   if (outfile==NULL) {
+    printf("Couldn't open %s for output.\n",filenm);
+   } else {
+       for (k=0;k<n_x;k++) 
+			 fprintf(outfile,"%g\t",b[k]);
+       fprintf(outfile,"\n");
+       fclose (outfile);
+   }
+ }
+ 
+
+def to_real2d(a, b = None):
+	"Interleave"
+	if b == None:
+		b = zeros(a.shape[0],2*a.shape[1])
+	for j in a.shape[0]:
+		for k in a.shape[1]:
+			b[j][2*k]= real(a[j][k]);
+			b[j][2*k+1]=imag(a[j][k]);
+	return b
+
+ void to_comp2d(int n1, int n2, complex<double> **a, double **b) {
+
+ int j,k;
+ complex<double> I_UNIT(0.,1.);
+ for (j=0;j<n1;j++) {
+     for (k=0;k<n2;k++) {
+          a[j][k]=b[j][2*k]+I_UNIT*b[j][2*k+1];
+      }
+   }
+ }

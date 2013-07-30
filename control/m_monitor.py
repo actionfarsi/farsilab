@@ -18,10 +18,6 @@ t1 = zeros(n)
 data2 = zeros(n)
 t2 = zeros(n)
 
-
-
-
-
 def thread_random2():
         def run():
             while True:
