@@ -32,7 +32,7 @@ double  inputT2, outputT2, setpoint2;
 //PID tempPID2(&inputT2, &outputT2, &setpoint2, 2, 5, 1, DIRECT);
 
 
-volatile int state = LOW;
+//volatile int state = LOW;
 bool bufferFlag = false;
 
 void setup() { 
@@ -109,7 +109,7 @@ void testResistor() {
   analogWrite(CURRENT1_PIN, 0);
   analogWrite(CURRENT2_PIN, 0);
   setResistance(0, 0);
-  setResistance(3000, 1);
+  setResistance(0, 1);
   digitalWrite(LED1_PIN, HIGH);
   digitalWrite(LED2_PIN, LOW);
   delay(1000);
@@ -121,7 +121,7 @@ void testResistor() {
   // Switch to the second configuration
   Serial.println("R  2");
   setResistance(255, 0);
-  setResistance(1500, 1);
+  setResistance(255, 1);
   digitalWrite(LED1_PIN, LOW);
   digitalWrite(LED2_PIN, HIGH);
   delay(1000);
@@ -140,7 +140,7 @@ void testTemp(){
   }
   analogWrite(CURRENT1_PIN, out_v);
   analogWrite(CURRENT2_PIN, out_v);
-  delay(500)
+  delay(1000);
   // Read temperature  
   int t1 = analogRead(TEMP1_PIN);
   int t2 = analogRead(TEMP2_PIN);
@@ -153,7 +153,7 @@ void testTemp(){
   Serial.print(t2);
   Serial.println("");  
   
-  if (t1 > 100) || (t2 > 100){
+  if ((t1 > 1000) || (t2 > 1000)){
     // If temperature is too high, abort
     analogWrite(CURRENT1_PIN, 0);
     analogWrite(CURRENT2_PIN, 0);
@@ -161,10 +161,10 @@ void testTemp(){
     for (int i = 0; i <5; i++){ 
       digitalWrite(LED1_PIN, HIGH);
       digitalWrite(LED2_PIN, LOW);
-      delay(200)
+      delay(200);
       digitalWrite(LED1_PIN, LOW);
       digitalWrite(LED2_PIN, HIGH);
-      delay(200)
+      delay(200);
     }
     digitalWrite(LED1_PIN, LOW);
     digitalWrite(LED2_PIN, LOW);
@@ -182,6 +182,7 @@ void loop() {
     command_byte = Serial.read();
     if (command_byte == 'T') state = 'T';
     if (command_byte == 'R') state = 'R';
+  }
     // Loop for the state
     switch (state){
       case 'T': testTemp();        
