@@ -3,6 +3,10 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
+:Author: Alessandro Farsi af342@cornell.edu
+:last-edited: 29 January 2013
+:revision: 3
+   
 Welcome to farsi-lab's documentation!
 =====================================
 
@@ -18,6 +22,7 @@ Contents:
 .. toctree::
    :maxdepth: 2
    
+   instrument/Visa_manual
    instrument/TDC_manual
    instrument/nidaq
 
