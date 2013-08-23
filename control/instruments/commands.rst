@@ -25,3 +25,12 @@ For a sweep
 * WAV:SWEEP 1
 * WAV:SWEEP:STEP:NEXT
 
+Tunable Filter
+==============
+
+JDS TB9
+-------
+
+* WVL 1550e-9 m
+* WVL?
+
