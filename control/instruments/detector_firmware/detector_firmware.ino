@@ -45,7 +45,7 @@ bool bufferFlag = false;
 
 void setup() { 
   // Init Serial comunication with PC
-  Serial.begin(14400, SERIAL_8N1);
+  Serial.begin(28800, SERIAL_8N1);
   
   // Init the SPI library
   SPI.begin();
@@ -192,7 +192,7 @@ void apdLoop(){
    for (int i = 0; i<N_TEMP; i++){
      t1 += analogRead(TEMP1_PIN);
      t2 += analogRead(TEMP2_PIN);
-     delay(100);
+     delay(50);
    }
    
    // Convert to temperature K and average with the previous
@@ -231,11 +231,11 @@ void apdComm(){
   // Temperature Status
   Serial.print("T1 ");
   Serial.print(inputT1);
-  Serial.print("SetT ");
+  Serial.print(" SetT ");
   Serial.print(setpoint1);
-  Serial.print("Current ");
+  Serial.print(" Current ");
   Serial.print(outputT1);
-  Serial.print("K1");
+  Serial.print(" K1 ");
   Serial.print(tempPID1.GetKp());
   Serial.print(" ");
   Serial.print(tempPID1.GetKi());
@@ -243,11 +243,11 @@ void apdComm(){
   Serial.println(tempPID1.GetKd());
   Serial.print("T2 ");
   Serial.print(inputT2);
-  Serial.print("SetT ");
+  Serial.print(" SetT ");
   Serial.print(setpoint2);
-  Serial.print("Current ");
+  Serial.print(" Current ");
   Serial.print(outputT2);
-  Serial.print("K2");
+  Serial.print(" K2 ");
   Serial.print(tempPID2.GetKp());
   Serial.print(" ");
   Serial.print(tempPID2.GetKi());
@@ -256,16 +256,26 @@ void apdComm(){
   
 }
 
-char command_byte = 0;
+char command_byte = -1;
 char values_buffer[64];
 int bytes_read;
 char state = 'R'; 
 
 void loop() {
+  // Fill up buffer
   if (Serial.available() > 0) {
     // read the incoming byte:
-    command_byte = Serial.read();
-    Serial.readBytes(values_buffer, bytes_read);
+    if (command_byte == -1){
+        command_byte = Serial.read();
+        bytes_read = 0;
+    }
+    else{
+        values_buffer[bytes_read] = Serial.read();
+        bytes_read += 1;
+    }
+  }
+  // Process buffer
+  else if (command_byte != -1){
     switch (command_byte){
       case '1': // Temperature Test
         state = 'T';
@@ -299,8 +309,10 @@ void loop() {
         apdParametersSet(values_buffer[0],values_buffer+1,2);
         break;
     }
+    command_byte = -1;
     Serial.flush();
   }
+  else {  // do stuff
     // Loop for the state
     switch (state){
       case 'T': testTemp();        
@@ -309,10 +321,10 @@ void loop() {
         break;
       case 'A':
         apdLoop();  // Update 
-        apdComm();   // Communication state
+        apdComm();  // Communication state
     }
     Serial.flush();
-   
+  }
 
 }
 
