@@ -18,6 +18,7 @@ import wxversion
 wxversion.ensureMinimal('2.8')
 
 import matplotlib
+
 matplotlib.use('WXAgg')
 
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
@@ -26,6 +27,8 @@ from matplotlib.figure import Figure
 
 import wx
 import wx.xrc as xrc
+import threading, time
+
 
 class PlotPanel(wx.Panel):
     """ Inspired by example "embedding_in_wx3.py"
@@ -169,7 +172,8 @@ class InstrumentFrame(wx.Frame):
         ## Update layout
         self.box.Fit(self)
 
-    def addPlotPanel(self, name, callback):
+    def addPlotPanel(self, name, callback, timer = 0, multichannel = False):
+        " If timer, the button starts and stops acquisition "
         p = PlotPanel(self)
         
         ## Associated button
@@ -177,14 +181,61 @@ class InstrumentFrame(wx.Frame):
         btn.SetFont( self.buttonF )
         
         def callbackWrap(evt):
-            result = callback()
-            a = p.fig.add_subplot(111)
-            a.hold(False)
-            a.plot(result)
+            """ Callback and draw """
+            results = callback()
+            if not multichannel:
+                results = [results]
+            
+            ## Try to update, if not, replot
+            try:
+                lines = self.ax.get_lines()
+                for i,r in enumerate(results):
+                    lines[i].set_ydata(r)
+                self.ax.autoscale_view()
+            except Exception as inst:
+               
+                self.ax = p.fig.add_subplot(111)
+                self.ax.hold(True)
+                for r in results:
+                    self.ax.plot(r)
+                
+            
+            ## Update the canvas
             p.canvas.draw()
+    
+        class Timer(threading.Thread):
+            def __init__(self):
+                threading.Thread.__init__(self)
+                self.running = True
+
+            def run(self):
+                " The things I want to do go here. "
+                while self.running == True:
+                
+                    callbackWrap(None)
+                    time.sleep(timer)
+
+            def stop(self):
+                self.running = False
+
         
+        def timerStartStop(evt):
+            if self.timer == None:
+                self.timer = Timer()
+                self.timer.start()
+            else:
+                self.timer.stop()
+                self.timer = None
+                
         ## Bind the event
-        self.Bind(wx.EVT_BUTTON, callbackWrap, btn) 
+        if timer <= 0:
+            self.Bind(wx.EVT_BUTTON, callbackWrap, btn) 
+        
+        else:
+            self.timer = None
+            self.Bind(wx.EVT_BUTTON, timerStartStop, btn)
+            
+            
         
         ## Add the button to the panel
         p.GetSizer().Add(btn, 0,  wx.ALL | wx.EXPAND,border = 1)
@@ -221,6 +272,8 @@ class InstrumentApp(wx.App):
         self.addButton = self.f.addButton
         self.addButtonValue = self.f.addButtonValue
         self.addPlotPanel = self.f.addPlotPanel
+
+import random
         
 def test():
     app = InstrumentApp()  # Create a new app, don't redirect stdout/stderr to a window.
@@ -233,13 +286,15 @@ def test():
         
     def b3(i):
         print i,"pp"
+        
     def b4():
-        return [1,2,3,2,3,4]
+        return [[random.random() for i in xrange(5)],
+                [random.random() for i in xrange(5)]]
     
     app.addButton("Do b1",b1)
     app.addButtonValue("Value b2",b2)
     app.addValueCtr("Control b3", b3)
-    app.addPlotPanel("Plot b4", b4)
+    app.addPlotPanel("Plot b4", b4, multichannel = True, timer = 0.2)
     
     
     app.MainLoop()
