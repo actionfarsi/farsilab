@@ -86,18 +86,26 @@ class InstrumentFrame(wx.Frame):
         self.buttons = []
         
         ## Set Sizer and Automatic Layout
+        self.vbox = wx.BoxSizer(wx.HORIZONTAL)
         self.box = wx.BoxSizer(wx.VERTICAL)
+        
+        self.vbox.Add(self.box, 1, wx.ALL| wx.EXPAND, border = 0)
         
         #self.box.SetMinSize((300,15))
         
         self.description = wx.StaticText(self, label = description)
         #self.description.SetSize((300,-1))
-        self.box.Add(self.description, 0, wx.ALL , border = 4)   
+        self.box.Add(self.description, 1, wx.ALL | wx.EXPAND, border = 4)
         
-        self.SetSizer(self.box)
+        self.SetSizer(self.vbox)
         #self.SetAutoLayout(1)
         self.Fit()
-        
+    
+    def addColumn(self):
+        self.box = wx.BoxSizer(wx.VERTICAL)
+        self.vbox.Add(self.box, 1, wx.ALL | wx.EXPAND, border = 4)
+        self.Fit()
+    
     def addButton(self, name, callback):
         """ Add a button and connect it to a command 
         
@@ -105,7 +113,7 @@ class InstrumentFrame(wx.Frame):
         """
         self.buttons.append(wx.Button(self, label= name))
         self.Bind(wx.EVT_BUTTON, lambda evt: callback(), self.buttons[-1])
-        self.box.Add(self.buttons[-1],  0,wx.ALL | wx.EXPAND, border = 4)
+        self.box.Add(self.buttons[-1],  0,wx.ALL|wx.EXPAND , border = 4)
         self.buttons[-1].SetFont( self.buttonF )
         self.buttons[-1].SetSize( (-1, 20) )
         ## Update layout
@@ -135,11 +143,11 @@ class InstrumentFrame(wx.Frame):
 
         ## Add to a the sizer
         valueCnt = wx.BoxSizer(wx.HORIZONTAL)
-        valueCnt.Add(btn, 0,wx.ALL | wx.EXPAND, border = 4)
-        valueCnt.Add(txt, 1, wx.ALL | wx.ALIGN_CENTER_VERTICAL , border = 4)
+        valueCnt.Add(btn, 0,wx.ALL |wx.EXPAND , border = 4)
+        valueCnt.Add(txt, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL , border = 4)
         valueCnt.Fit(self)
         
-        self.box.Add(valueCnt,  0, wx.ALL | wx.EXPAND, border = 4)
+        self.box.Add(valueCnt,  0, wx.ALL , border = 4)
         ## Update layout
         self.box.Fit(self)
     
@@ -164,15 +172,15 @@ class InstrumentFrame(wx.Frame):
 
         ## Add to a the sizer
         valueCnt = wx.BoxSizer(wx.HORIZONTAL)
-        valueCnt.Add(btn, 0,wx.ALL | wx.EXPAND, border = 4)
-        valueCnt.Add(txt, 1, wx.ALL | wx.ALIGN_CENTER_VERTICAL , border = 4)
+        valueCnt.Add(btn, 0,wx.ALL, border = 4)
+        valueCnt.Add(txt, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL , border = 4)
         valueCnt.Fit(self)
         
         self.box.Add(valueCnt,  0, wx.ALL | wx.EXPAND, border = 4)
         ## Update layout
         self.box.Fit(self)
 
-    def addPlotPanel(self, name, callback, timer = 0, multichannel = False):
+    def addPlotPanel(self, name, callback, timed = 0, multichannel = False):
         " If timer, the button starts and stops acquisition "
         p = PlotPanel(self)
         
@@ -191,6 +199,7 @@ class InstrumentFrame(wx.Frame):
                 lines = self.ax.get_lines()
                 for i,r in enumerate(results):
                     lines[i].set_ydata(r)
+                self.ax.relim()
                 self.ax.autoscale_view()
             except Exception as inst:
                
@@ -211,9 +220,8 @@ class InstrumentFrame(wx.Frame):
             def run(self):
                 " The things I want to do go here. "
                 while self.running == True:
-                
                     callbackWrap(None)
-                    time.sleep(timer)
+                    time.sleep(timed)
 
             def stop(self):
                 self.running = False
@@ -228,7 +236,7 @@ class InstrumentFrame(wx.Frame):
                 self.timer = None
                 
         ## Bind the event
-        if timer <= 0:
+        if timed <= 0:
             self.Bind(wx.EVT_BUTTON, callbackWrap, btn) 
         
         else:
@@ -245,6 +253,7 @@ class InstrumentFrame(wx.Frame):
         #self.buttons[-1].SetFont( self.buttonF )
         #self.buttons[-1].SetSize( (-1, 20) )
         ## Update layout
+        self.box.Fit(self)
         self.Fit()
         
     
@@ -272,7 +281,9 @@ class InstrumentApp(wx.App):
         self.addButton = self.f.addButton
         self.addButtonValue = self.f.addButtonValue
         self.addPlotPanel = self.f.addPlotPanel
-
+        self.addColumn = self.f.addColumn
+        
+        
 import random
         
 def test():
@@ -293,8 +304,9 @@ def test():
     
     app.addButton("Do b1",b1)
     app.addButtonValue("Value b2",b2)
+    app.addColumn()
     app.addValueCtr("Control b3", b3)
-    app.addPlotPanel("Plot b4", b4, multichannel = True, timer = 0.2)
+    app.addPlotPanel("Plot b4", b4, multichannel = True, timed = 0.2)
     
     
     app.MainLoop()
