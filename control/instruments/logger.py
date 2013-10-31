@@ -8,6 +8,8 @@ sys.path.append(r"C:\dropbox\Gaeta-lab\farsilab")  # Append farsilab library
 from control import inst_panel
 from numpy import *
 
+from time import time
+
 data = zeros(100)
 log_file = None
 
@@ -15,11 +17,10 @@ def acquire():
     return random.random(15)
 
 def plotData():
-    d = acquire()
-    try:
-        n = len(d)
-    except:
-        n = 1
+    d = array(acquire())
+    n = len(d)
+    if n == 0:
+        return [data]
         
     if len(data)< n:
         global data
@@ -29,12 +30,9 @@ def plotData():
     data[-n:] = d
     
     if log_file:
-        try:
-            for value in d:
-                log_file.write("%f\n"%value)
+        for value in d:
+            log_file.write("%f %f\n"%(time()-log_time, value))
             
-        except:
-            log_file.write("%f\n"%d)
             
     return [data]
     
@@ -44,19 +42,26 @@ def connectCom(com):
     import visa
     instrument = visa.Instrument("COM"+com)
     global acquire
-    acquire = instrument.read_values
+    acquire = lambda : acquireCom(instrument)
     print "Connected to COM"+com
+
+def acquireCom(instrument):
+    instrument.clear()
+    return instrument.read_values()
     
 ## Connect to VISA
 ## Connect to Remote
 
 def toggleLog(filename):
     global log_file
+    global log_time
     if log_file:
         log_file.close()
         log_file = None
+        
     else:
         log_file = open(filename,'w')
+        log_time = time()
         print "Started logging"
     
 
@@ -65,5 +70,5 @@ app = inst_panel.InstrumentApp("Logger","Logger\n Connect to any COM, VISA \nor 
 app.addValueCtr("Connect to com ", connectCom, default = "1")
 app.addValueCtr("LOG", toggleLog, "log.txt")
 app.addColumn()
-app.addPlotPanel("Start/stop", plotData, multichannel = True, timed = 0.1)
+app.addPlotPanel("Start/stop", plotData, multichannel = True, timed = 1)
 app.MainLoop()
