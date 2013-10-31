@@ -2,7 +2,7 @@
 
 Simple Simple Simple GUI
 
-It creates a frame/app with buttons assotiated to callbacks
+It creates a frame/app with buttons associated to callbacks
 
 addButton       - just execute the callback
 addButtonValue  - the value returned is printed on the callback
@@ -14,8 +14,8 @@ TODO addButtonSave
 """
 
 # Used to guarantee to use at least Wx2.8
-import wxversion
-wxversion.ensureMinimal('2.8')
+#import wxversion
+#wxversion.ensureMinimal('2.8')
 
 import matplotlib
 
@@ -202,7 +202,7 @@ class InstrumentFrame(wx.Frame):
                 self.ax.relim()
                 self.ax.autoscale_view()
             except Exception as inst:
-               
+                print inst
                 self.ax = p.fig.add_subplot(111)
                 self.ax.hold(True)
                 for r in results:
