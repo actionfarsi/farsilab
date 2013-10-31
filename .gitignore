@@ -4,5 +4,4 @@
 _netrc
 
 # Remove Temporary Spynx Directory
-_*
 .log
