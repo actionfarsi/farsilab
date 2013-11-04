@@ -6,24 +6,27 @@
  - Start sweep
  - Stop Shutter (NiDAQ)
 
-The same trigger starts voltage acquisiton and shutter
+The same trigger starts voltage acquisition and shutter
  
 """
 
 import sys
-sys.path.append(r"D:\Cornell\farsilab")
+sys.path.append(r"C:\dropbox\Gaeta-lab\farsilab")
 
 import visa  ## PyVisa
-import instrument.daq   ## PyDaq (from 
+from control import daq   ## PyDaq 
+from control import inst_panel  ## Instrument panel
 
 from numpy import *
 from matplotlib import pylab as pl
 
 ## Init
-print "Set up NiDAQ"
-laser_i = visa.Instrument('GPIB::10')
-dev = daq.Device('Dev2')
-
+print "Set up NiDAQ and GPIB"
+try:
+    laser_i = visa.Instrument('GPIB::1')
+    dev = daq.Device('Dev1')
+except:
+    print "Resources not loaded"
 
 w_range = (1545, 1555)
 sweep_time = 1
@@ -49,15 +52,20 @@ def readVoltTask(run = False):
         print readvolt.read_analog_scalar_float64()
         readvolt_t.clear()
     return readvolt_t
-    
-def run():
-    ## Setup the sweep
-    print "Set up sweep"
+
+def laserScan(run = False):
     laser_i.write('TSWM1') # Continuous Trig
     laser_i.write('TSTAWL%8.3f'%w_range[0])
     laser_i.write('TSTPWL%8.3f'%w_range[1])
     laser_i.write('TSWEINT%5d'%sweep_time)
     laser_i.write('TWL%8.4f'%w_range[0])  # Set frequency at start
+    if run:
+        laser_i.write('TSGL') # Start Sweep
+    return laser_i
+        
+def run():
+    ## Setup the sweep
+    laserScan()
     
     ## Setup V acquisition task
     readvolt_t = readVoltTask()
@@ -82,11 +90,20 @@ def run():
     return c_[wavelength, voltage]
     
 if __name__ == '__main__':
-    w,v = run()
-    pl.plot(w,v)
-    pl.show()
+    #w,v = run()
+    #pl.plot(w,v)
+    #pl.show()
+    description = """Perform a laser sweep, but open and close
+    the shutter to minimize power through.
+    Set on GPIB 1 and dev1"""
     
-    
+    ## Init the app
+    app = inst_panel.InstrumentApp("Lockin + shutter", description)
+    app.addButton("Shutter", lambda : shutterTask(True))
+    app.addButton("Laser scan", lambda : laserScan(True))
+    app.addColumn()
+    app.addPlotPanel("Measurement", run)
+    app.MainLoop()
     
     
     
