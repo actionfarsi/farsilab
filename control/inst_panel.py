@@ -151,6 +151,25 @@ class InstrumentFrame(wx.Frame):
         ## Update layout
         self.box.Fit(self)
     
+    def addList(self, options, callback):
+        ## Associated button
+        btn = wx.Button(self, label= name)
+        btn.SetFont( self.buttonF )
+        
+        ## Bind the event
+        self.Bind(wx.EVT_TEXT_ENTER, lambda evt: callback(txt.GetValue()), txt)
+        self.Bind(wx.EVT_BUTTON, lambda evt: callback(txt.GetValue()), btn) 
+
+        ## Add to a the sizer
+        valueCnt = wx.BoxSizer(wx.HORIZONTAL)
+        valueCnt.Add(btn, 0,wx.ALL, border = 4)
+        valueCnt.Add(txt, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL , border = 4)
+        valueCnt.Fit(self)
+        
+        self.box.Add(valueCnt,  0, wx.ALL | wx.EXPAND, border = 4)
+        ## Update layout
+        self.box.Fit(self)
+    
     def addValueCtr(self, name, callback, default = "0"):
         """ Add input + button and connect it to a command 
         
