@@ -21,13 +21,13 @@ instrument_list = {'ANDO': 4,
 addr = instrument_list['AGILENT']
 
 ## If using Usb2Gpib
-inst = Instrument('GPIB::%d'%addr)
+#inst = Instrument('GPIB::%d'%addr)
 
 ## If using pixlogic
 ## Set the right com
 #
-# inst = Instrument('COM6')
-# inst.write('++ %d'%addr)
+inst = Instrument('COM5')
+inst.write('++addr %d'%addr)
 
 def andoAskData():
     """
@@ -64,7 +64,8 @@ def AgilentAskData():
 
     assert len(data) != n
     return data
-    
+
+print inst.ask("*IDN?")
 ## savefile
 data = AgilentAskData()
 pylab.plot(data)
