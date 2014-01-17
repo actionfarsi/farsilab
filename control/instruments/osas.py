@@ -40,7 +40,7 @@ def andoAskData():
     data = [float(i) for i in raw_data[1:]]
 
     assert len(data) != n
-    return data
+    return linspace(0,n, n), data
 
     
 def Hp8563AskData():
@@ -54,21 +54,24 @@ def Hp8563AskData():
     data = [float(i) for i in raw_data[1:]]
 
     assert len(data) != n
-    return data
+    return linspace(0,n, n), data
 
 def AgilentAskData():
 
     raw_data = inst.ask('TRACE? tra').split(',')
     n = raw_data[0]
     data = [float(i) for i in raw_data[1:]]
-
     assert len(data) != n
-    return data
+    
+    w_start = inst.ask("sens:wav:star?")
+    w_stop = inst.ask("sens:wav:stop?")
+    w = linspace(w_start, w_stop, n) 
+    return w, data
 
 print inst.ask("*IDN?")
 ## savefile
-data = AgilentAskData()
-pylab.plot(data)
+w, data = AgilentAskData()
+pylab.plot(w, data)
 pylab.show()
 namefile = raw_input('Save data in file (name) -> ')
-savetxt(namefile + '.txt',data)
+savetxt(namefile + '.txt',c_[n, data] )
