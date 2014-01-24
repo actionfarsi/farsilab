@@ -17,7 +17,9 @@ if __name__ == "__main__":
     
     ## ask for data
     a = ins.ask('curve?')
-    data = [int(i) for i in a.split()[1].split(',')]
+    print a
+    #data = [int(i) for i in a.split()[1].split(',')]
+    data = [int(i) for i in a.split(',')]
     
     ## ask for 
     a = ins.ask('horizontal:main:scale?')

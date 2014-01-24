@@ -10,7 +10,7 @@ ANDO GPIB-4
 import time
 from visa import Instrument
 from scipy.io import savemat
-from numpy import savetxt
+from numpy import savetxt, linspace, c_
 from matplotlib import pylab
 
 ## Instrument and address
@@ -21,13 +21,13 @@ instrument_list = {'ANDO': 4,
 addr = instrument_list['AGILENT']
 
 ## If using Usb2Gpib
-#inst = Instrument('GPIB::%d'%addr)
+inst = Instrument('GPIB::%d'%addr)
 
 ## If using pixlogic
 ## Set the right com
 #
-inst = Instrument('COM5')
-inst.write('++addr %d'%addr)
+#inst = Instrument('COM5')
+#inst.write('++addr %d'%addr)
 
 def andoAskData():
     """
@@ -59,13 +59,13 @@ def Hp8563AskData():
 def AgilentAskData():
 
     raw_data = inst.ask('TRACE? tra').split(',')
-    n = raw_data[0]
-    data = [float(i) for i in raw_data[1:]]
-    assert len(data) != n
+    data = [float(i) for i in raw_data]
+    n = len(data)#raw_data[0]
+    #assert len(data) == n
     
     w_start = inst.ask("sens:wav:star?")
     w_stop = inst.ask("sens:wav:stop?")
-    w = linspace(w_start, w_stop, n) 
+    w = linspace(float(w_start), float(w_stop), n) 
     return w, data
 
 print inst.ask("*IDN?")
@@ -74,4 +74,4 @@ w, data = AgilentAskData()
 pylab.plot(w, data)
 pylab.show()
 namefile = raw_input('Save data in file (name) -> ')
-savetxt(namefile + '.txt',c_[n, data] )
+savetxt(namefile + '.txt', c_[w, data] )
