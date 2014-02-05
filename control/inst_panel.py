@@ -63,7 +63,23 @@ class PlotPanel(wx.Panel):
         # this is supposed to prevent redraw flicker on some X servers...
         pass
 
+class Timer(threading.Thread):
+        def __init__(self,callback, timed):
+            threading.Thread.__init__(self)
+            self.running = True
+            self.callback = callback
+            self.timed = timed
 
+        def run(self):
+            " The things I want to do go here. "
+            while self.running == True:
+                self.callback(None)
+                time.sleep(self.timed)
+
+        def stop(self):
+            self.running = False
+        
+        
 class InstrumentFrame(wx.Frame):
     def __init__(self, title = "Instrument GUI",
                        description = "Commands\n\n",
@@ -199,6 +215,8 @@ class InstrumentFrame(wx.Frame):
         ## Update layout
         self.box.Fit(self)
 
+    
+        
     def addPlotPanel(self, name, callback, timed = 0, multichannel = False):
         " If timer, the button starts and stops acquisition "
         p = PlotPanel(self)
@@ -231,35 +249,23 @@ class InstrumentFrame(wx.Frame):
             ## Update the canvas
             p.canvas.draw()
     
-        class Timer(threading.Thread):
-            def __init__(self):
-                threading.Thread.__init__(self)
-                self.running = True
-
-            def run(self):
-                " The things I want to do go here. "
-                while self.running == True:
-                    callbackWrap(None)
-                    time.sleep(timed)
-
-            def stop(self):
-                self.running = False
+        
 
         
         def timerStartStop(evt):
-            if self.timer == None:
-                self.timer = Timer()
-                self.timer.start()
+            if p.timer == None:
+                p.timer = Timer(callbackWrap, timed)
+                p.timer.start()
             else:
-                self.timer.stop()
-                self.timer = None
+                p.timer.stop()
+                p.timer = None
                 
         ## Bind the event
         if timed <= 0:
             self.Bind(wx.EVT_BUTTON, callbackWrap, btn) 
         
         else:
-            self.timer = None
+            p.timer = None
             self.Bind(wx.EVT_BUTTON, timerStartStop, btn)
             
             
@@ -326,7 +332,9 @@ def test():
     app.addColumn()
     app.addValueCtr("Control b3", b3)
     app.addPlotPanel("Plot b4", b4, multichannel = True, timed = 0.2)
-    
+    app.addColumn()
+    app.addValueCtr("Control b3", b3)
+    app.addPlotPanel("Plot b4", b4, multichannel = True, timed = 0.2)
     
     app.MainLoop()
 
