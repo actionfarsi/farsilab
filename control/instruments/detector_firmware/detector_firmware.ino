@@ -13,8 +13,8 @@ const byte DECREASE =  B00001000;  // Reset opcode command
 
 // pins used for the connection with the sensor
 // the other you need are controlled by the SPI library):
-const int TEMP1_PIN = 3;
-const int TEMP2_PIN = 2;
+const int TEMP1_PIN = 2;
+const int TEMP2_PIN = 1;
 const int LED1_PIN = 6;
 const int LED2_PIN = 7;
 const int CURRENT1_PIN = 3;
@@ -26,6 +26,9 @@ const double RW = 2;
 const int N_TEMP = 10;
 const float T1_b = 2.2;
 const float T2_b = 2.2;
+
+const float coef[5] = {1.849883e+02,  -5.691165e+02,  5.504472e+02,
+                       -2.781780e+02,  3.978998e+01};
 
 //Define Variables we'll be connecting to
 double  inputT1, outputT1, setpoint1;
@@ -43,6 +46,19 @@ PID tempPID2(&inputT2, &outputT2, &setpoint2, k2[0], k2[1], k2[2], DIRECT);
 //volatile int state = LOW;
 bool bufferFlag = false;
 
+
+float readTemp(float voltage){
+  
+  float vv = 1,t = 0;
+  for (int i=4; i>=  0; i--){
+    t += coef[i] * vv;
+    vv = vv*voltage;
+  }
+  return (t);
+  
+}
+    
+
 void setup() { 
   // Init Serial comunication with PC
   Serial.begin(28800, SERIAL_8N1);
@@ -58,7 +74,7 @@ void setup() {
   
   // Init and configure PID
   //initialize the variables we're linked to
-  inputT1 = analogRead(TEMP1_PIN);
+  inputT1 = readTemp(analogRead(TEMP1_PIN));
   inputT2 = analogRead(TEMP2_PIN);
   setpoint1 = 300;
   setpoint2 = 30;
@@ -120,7 +136,7 @@ void testResistor() {
   Serial.println("R  1");
   analogWrite(CURRENT1_PIN, 0);
   analogWrite(CURRENT2_PIN, 0);
-  setResistance(0, 0);
+  setResistance(0,  0);
   setResistance(0, 1);
   digitalWrite(LED1_PIN, HIGH);
   digitalWrite(LED2_PIN, LOW);
@@ -141,7 +157,6 @@ void testResistor() {
   readSPI(0);
   readSPI(1);
 }
-
 
 
 void testTemp(){
@@ -190,14 +205,14 @@ void apdLoop(){
   // Read and integrate temperature
    float t1 = 0, t2 = 0;
    for (int i = 0; i<N_TEMP; i++){
-     t1 += analogRead(TEMP1_PIN);
-     t2 += analogRead(TEMP2_PIN);
-     delay(50);
+     t1 += analogRead(TEMP1_PIN)/1023.;
+     t2 += analogRead(TEMP2_PIN)/1023.;
+     delay(30);
    }
-   
+  
    // Convert to temperature K and average with the previous
-   t1 = 0.7 * (t1/N_TEMP)/T1_b + 0.3 * inputT2;
-   t2 = 0.7 * (t2/N_TEMP)/T2_b + 0.3 * inputT1;
+   inputT1 = 0.7 * (readTemp(t1/N_TEMP)) + 0.3 * inputT1;
+   inputT2 = 0.7 * (readTemp(t2/N_TEMP)) + 0.3 * inputT2;
    
    // Compute the update and change current
    tempPID1.Compute();
@@ -259,7 +274,7 @@ void apdComm(){
 char command_byte = -1;
 char values_buffer[64];
 int bytes_read;
-char state = 'R'; 
+char state = 'A'; 
 
 void loop() {
   // Fill up buffer
