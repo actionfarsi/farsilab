@@ -217,13 +217,15 @@ class InstrumentFrame(wx.Frame):
 
     
         
-    def addPlotPanel(self, name, callback, timed = 0, multichannel = False):
+    def addPlotPanel(self, name, callback,
+                     timed = 0, multichannel = False,
+                     before_callback = None, after_callback = None):
         " If timer, the button starts and stops acquisition "
         p = PlotPanel(self)
         
         ## Associated button
         btn = wx.Button(p, label= name)
-        btn.SetFont( self.buttonF )
+        btn.SetFont(self.buttonF)
         
         def callbackWrap(evt):
             """ Callback and draw """
@@ -233,31 +235,30 @@ class InstrumentFrame(wx.Frame):
             
             ## Try to update, if not, replot
             try:
-                lines = self.ax.get_lines()
+                lines = p.ax.get_lines()
                 for i,r in enumerate(results):
                     lines[i].set_ydata(r)
-                self.ax.relim()
-                self.ax.autoscale_view()
+                p.ax.relim()
+                p.ax.autoscale_view()
             except Exception as inst:
                 print inst
-                self.ax = p.fig.add_subplot(111)
-                self.ax.hold(True)
+                p.ax = p.fig.add_subplot(111)
+                p.ax.hold(True)
                 for r in results:
-                    self.ax.plot(r)
+                    p.ax.plot(r)
                 
             
             ## Update the canvas
             p.canvas.draw()
-    
-        
-
         
         def timerStartStop(evt):
             if p.timer == None:
+                if before_callback != None: before_callback()
                 p.timer = Timer(callbackWrap, timed)
                 p.timer.start()
             else:
                 p.timer.stop()
+                if after_callback != None: after_callback()
                 p.timer = None
                 
         ## Bind the event
