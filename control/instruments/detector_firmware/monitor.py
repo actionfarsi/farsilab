@@ -1,14 +1,24 @@
-# Tec Station
+""" APD Monitor Station 
+
+Monitor APD status through serial
+It communicates with arduino for TEC and (todo) voltage
+
+Commands through the serial
+'1' - Temperature Test Routine
+'A' - Start TEC
+'a' - Stop TEC
+'t###' - Set temperature (where ### is a float)
+'kP###' - Set PID parameters (N is 'P','I','D' and ### is a float) 
+"""
 
 import visa
 from matplotlib import pylab as pl
-import matplotlib.animation as animation
-
 import time
 
 ## Import latest version of farsi-lab
 import sys
-sys.path.append("C:\\Users\\Action Farsi\\Documents\\farsi-lab")
+sys.path.append("C:\\dropbox\\Gaeta-lab\\farsilab")
+sys.path.append("D:\\Dropbox\\Gaeta-lab\\farsilab")
 
 from control.inst_panel import InstrumentApp
 
@@ -16,11 +26,8 @@ apd = 0
 
 def init():
     global apd
-    apd = visa.SerialInstrument("COM13", baud_rate = 28800)
+    apd = visa.SerialInstrument("COM3", baud_rate = 28800)
     time.sleep(2)
-
-    apd.write('A\n')
-
     
 
 hist_size = 10
@@ -47,7 +54,15 @@ def readTec():
         for s in tec2[6:]:
             print s, ' ',
         print ''
+    except:
+        print "Cannot read from the serial"
+        return [ tec1_hist[0], tec1_hist[1],
+                 tec2_hist[0], tec2_hist[1]]
+        
+        
+        
     
+    try:
         tec1_hist[0].append(float(tec1[1]))
         tec1_hist[0] = tec1_hist[0][1:]
         tec1_hist[1].append(float(tec1[3]))
@@ -63,7 +78,8 @@ def readTec():
         tec2_hist[2] = tec2_hist[2][1:]
         
     except:
-        pass
+        print "Trouble parsing serial"
+        
     
     return [ tec1_hist[0], tec1_hist[1],
              tec2_hist[0], tec2_hist[1]]
@@ -96,7 +112,9 @@ app.addValueCtr("Set PID1", setPID1, default = "1,1,1")
 app.addValueCtr("Set PID2", setPID2, default = "1,1,1")
 
 app.addColumn()
-app.addPlotPanel("Tec1 (start/stop)", readTec, 0.3, multichannel = True)
+app.addPlotPanel("Tec1 (start/stop)", readTec, 0.3, multichannel = True,
+                 before_callback = apd.write('A\n'),
+                 after_callback = apd.write('0\n'))
 app.addColumn()
 app.addPlotPanel("Plot Power", powerTec, 0.3, multichannel = True)
 
