@@ -417,6 +417,9 @@ class InputTask(Task):
   def __init__(self, device='Dev1', task_name='', **kwargs):
       Task.__init__(self, device, task_name, **kwargs)
       self.read = None
+      ## Added by AF
+      CHK(nidaq.DAQmxSetReadReadAllAvailSamp(self.task_handle, True))
+
 
   def add_analog_voltage_channel(self, channel, channel_name='',
                                  terminal_config = DAQmx_Val_Cfg_Default,
@@ -464,7 +467,7 @@ class InputTask(Task):
       return read.value
 
   def set_analog_maximum(self, channel, value):
-      channel = self._canonical_channel_name(channel, 'analog')
+      channel =      self._canonical_channel_name(channel, 'analog')
       CHK(nidaq.DAQmxSetAIMax(self.task_handle, channel, float64(value)))
 
   def read_analog_float64(self):
