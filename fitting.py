@@ -22,14 +22,19 @@ class FittingFunction:
 # =======================================
 class Parameter:
     parameters = []
-    def __init__(self, initialvalue, name):
+    def __init__(self, initialvalue, name, bounds = None):
         self.value = initialvalue
         self.name = name
         self.saved = initialvalue
+        self.bounds = bounds
         Parameter.parameters.append(self)
-        
+    
     def set(self, value):
         self.value = value
+        if self.bounds:
+            self.value = max(self.bounds[0], value)
+            self.value = min(self.bounds[1], value)
+            
     def save(self):
         self.saved = self.value
     def load(self):
