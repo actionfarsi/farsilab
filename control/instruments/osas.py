@@ -50,7 +50,7 @@ def Hp8563AskData():
 
     """
     raw_data = inst.ask('TRA').split(',')
-    n = raw_data[0]
+    #n = raw_data[0]
     data = [float(i) for i in raw_data[1:]]
 
     assert len(data) != n

@@ -7,7 +7,6 @@ sys.path.append(r"C:\dropbox\Gaeta-lab\farsilab")  # Append farsilab library
 # Import from farsilab
 from control import inst_panel
 from numpy import *
-
 from time import time
 
 data = zeros(100)
