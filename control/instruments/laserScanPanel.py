@@ -45,10 +45,29 @@ fit_functions = {   'lorentz': [[a,l0,gamma, y0,b],
 error_log = ""
 error_visa = False
 gpib_wm = None
-gpib_laser = None
 
 
+def agilent_wl(i, wl):
+    i.write("wav %fnm"%wl)
 
+def osics_wl(i, wl, ch=1):
+    cw = i.ask_for_values("ch1:l?")
+    i.write("ch%d:l=%f"%(ch,wl))
+    ## If laser scans backward, waits 10 seconds
+    if cw > wl:
+        sleep(10)
+
+osics1_wl = lambda i,wl: osics_wl(i,wl,1)
+osics2_wl = lambda i,wl: osics_wl(i,wl,2)
+        
+                          # GPIB, handler, setwl
+laser_gpib_list = [ 'agilent': [ 20, (agilent_wl)],
+                    'osics':   [ 11, (osics_wl1, osics_wl2)], ]
+
+laser_list = { 'dummy': lambda x: 0 }
+               
+               
+               
 try:
     ## Init GPIP
     import visa
@@ -57,12 +76,15 @@ try:
 except ImportError:
     error_log = error_log + "Import error: verify libraries\n"
     error_visa = True
- 
-try:    
-    gpib_laser = visa.instrument("GPIB::20") # Set Laser Address
-except:
-    error_log = error_log + "Laser not connected\n"
-    error_visa = True
+
+for name, (addr,f_wl) in laser_list.items():
+    try:    
+        i = visa.instrument("GPIB::%d"%(addr)) # Set Laser Address
+        for j, f in enumerate(f_wl):
+            laser_list[name+j] = lambda wl: f(i,wl)
+            
+    except:
+        error_log = error_log + "Laser %s on GPIB::%d not connected\n"%(name, addr)
 
 try:        
     gpib_wm = visa.Instrument("GPIB::9")
@@ -71,7 +93,7 @@ except:
     
 
 ## Instrument ################################################
-def scan_and_read(wl, step_time = 0.6):
+def scan_and_read(wl, setLaserWl, step_time = 0.6):
     physical_channel = "dev2/ai0"      # Physical Channel: AI0 on Dev1
 
     voltage_task = daq.InputTask('Dev2')
@@ -82,7 +104,7 @@ def scan_and_read(wl, step_time = 0.6):
     
     for i,l in enumerate(wl):
         print l, 
-        gpib_laser.write("wav %fnm"%l)
+        setLaserWl(wl)
         print 1. * samples_read/len(wl) #ratio of scan progress
         sleep(step_time)
         data[i] = voltage_task.read()
@@ -100,7 +122,7 @@ def scan_and_read_dummy(wl):
 if error_visa:
     scan_and_read = scan_and_read_dummy
     
-def measure_l(wl):
+def measure_l(wl, setLaserWl):
     ## Skip of there is not wavemeter
     if not gpib_wm:
         return wl
@@ -108,16 +130,18 @@ def measure_l(wl):
     "Using wavemeter q8326"
     # Set laser to wavelenght
     sleep(0.5)
-    gpib_laser.write("wav %fnm"%wl)
+    setLaserWl(wl)
     sleep(2)
     
     sleep(6)
     return gpib_wm.ask_for_values("E")[0]/1e-9  #in nm
 
 ## Analysis ##############################################################                             
-def scan_and_fit(wl0, step_size, range, function_name = 'lorentz'):
+def scan_and_fit(wl0, step_size, range, laser_name, function_name = 'lorentz'):
     wl = arange(wl0 - range/2, wl0 + range/2, step_size)
-    y = scan_and_read(wl)
+    setLaserWl = laser_list[laser_name]
+    
+    y = scan_and_read(wl, setLaserWl)
     
     ## Expected values for parameters
     l0.set(wl[argmin(y)])
@@ -130,7 +154,7 @@ def scan_and_fit(wl0, step_size, range, function_name = 'lorentz'):
     
     xt = linspace(wl[0],wl[-1], len(y)*10)
     
-    p_l0 = measure_l(l0()) ## Wavemeter measurement of the minima
+    p_l0 = measure_l(l0(), setLaserWl) ## Wavemeter measurement of the minima
             
     
     r = {'l0': l0(), 'gamma':gamma(), 'precise_l0': p_l0,
@@ -163,7 +187,8 @@ class AutoScan(threading.Thread):
             
             r = scan_and_fit(res_next, self.options['step_size'], 
                                        self.options['rnge'],
-                                       function_name = self.options['fit_function'])
+                                       function_name = self.options['fit_function']
+                                       laser_name = self.options['laser_name'])
             
             
             ## Update FSR
@@ -254,6 +279,9 @@ class Monitor(scanMonitor):
         
         for f in fit_functions.iterkeys():
             self.m_chc_fit.Append(f)
+        for f in laser_list.iterkeys():
+            self.m_chc_laser.Append(f)
+            
         self.m_chc_fit.SetSelection(0)
         
         self.m_txt_fit.SetValue(error_log)
@@ -329,7 +357,9 @@ class Monitor(scanMonitor):
         r = scan_and_fit(wl0 = options['l0'],
                          step_size = options['step_size'],
                          range = options['rnge'],
-                         function_name = options['fit_function'])
+                         function_name = options['fit_function']
+                         laser_name = options['laser_name']
+                         )
     
         res_list.append(r)
         
@@ -374,6 +404,7 @@ class Monitor(scanMonitor):
                    'auto_range': [auto_start, auto_stop],
                    'fsr0': fsr0,
                    'fit_function': self.m_chc_fit.GetStringSelection(),
+                   'laser_name': self.m_chc_laser.GetStringSelection(),
                    'y0':float(self.m_txt_y0.GetValue()),
                    'a': float(self.m_txt_area.GetValue())
                    }

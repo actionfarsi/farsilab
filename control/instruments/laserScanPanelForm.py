@@ -39,28 +39,28 @@ class scanMonitor ( wx.Frame ):
 		self.m_staticText4.Wrap( -1 )
 		gSizer1.Add( self.m_staticText4, 0, wx.ALL, 5 )
 		
-		self.m_txt_l0 = wx.TextCtrl( self, wx.ID_ANY, u"1510", wx.DefaultPosition, wx.Size( 60,-1 ), 0 )
+		self.m_txt_l0 = wx.TextCtrl( self, wx.ID_ANY, u"1510", wx.DefaultPosition, wx.Size( 80,-1 ), 0 )
 		gSizer1.Add( self.m_txt_l0, 0, wx.ALL, 5 )
 		
 		self.m_staticText5 = wx.StaticText( self, wx.ID_ANY, u"Width (pm)", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText5.Wrap( -1 )
 		gSizer1.Add( self.m_staticText5, 0, wx.ALL, 5 )
 		
-		self.m_txt_g = wx.TextCtrl( self, wx.ID_ANY, u"4", wx.DefaultPosition, wx.Size( 60,-1 ), 0 )
+		self.m_txt_g = wx.TextCtrl( self, wx.ID_ANY, u"4", wx.DefaultPosition, wx.Size( 80,-1 ), 0 )
 		gSizer1.Add( self.m_txt_g, 0, wx.ALL, 5 )
 		
 		self.m_staticText6 = wx.StaticText( self, wx.ID_ANY, u"area", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText6.Wrap( -1 )
 		gSizer1.Add( self.m_staticText6, 0, wx.ALL, 5 )
 		
-		self.m_txt_area = wx.TextCtrl( self, wx.ID_ANY, u"1", wx.DefaultPosition, wx.Size( 60,-1 ), 0 )
+		self.m_txt_area = wx.TextCtrl( self, wx.ID_ANY, u"1", wx.DefaultPosition, wx.Size( 80,-1 ), 0 )
 		gSizer1.Add( self.m_txt_area, 0, wx.ALL, 5 )
 		
 		self.m_staticText7 = wx.StaticText( self, wx.ID_ANY, u"y0", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText7.Wrap( -1 )
 		gSizer1.Add( self.m_staticText7, 0, wx.ALL, 5 )
 		
-		self.m_txt_y0 = wx.TextCtrl( self, wx.ID_ANY, u"1", wx.DefaultPosition, wx.Size( 60,-1 ), 0 )
+		self.m_txt_y0 = wx.TextCtrl( self, wx.ID_ANY, u"1", wx.DefaultPosition, wx.Size( 80,-1 ), 0 )
 		gSizer1.Add( self.m_txt_y0, 0, wx.ALL, 5 )
 		
 		
@@ -82,21 +82,21 @@ class scanMonitor ( wx.Frame ):
 		self.m_staticText8.Wrap( -1 )
 		gSizer2.Add( self.m_staticText8, 0, wx.ALL|wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL, 5 )
 		
-		self.m_txt_startl = wx.TextCtrl( self, wx.ID_ANY, u"1510", wx.DefaultPosition, wx.Size( 40,-1 ), 0 )
+		self.m_txt_startl = wx.TextCtrl( self, wx.ID_ANY, u"1510", wx.DefaultPosition, wx.Size( 80,-1 ), 0 )
 		gSizer2.Add( self.m_txt_startl, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
 		
 		self.m_staticText13 = wx.StaticText( self, wx.ID_ANY, u"Stop (nm)", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText13.Wrap( -1 )
 		gSizer2.Add( self.m_staticText13, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_CENTER_HORIZONTAL, 5 )
 		
-		self.m_txt_stopl = wx.TextCtrl( self, wx.ID_ANY, u"1630", wx.DefaultPosition, wx.Size( 40,-1 ), 0 )
+		self.m_txt_stopl = wx.TextCtrl( self, wx.ID_ANY, u"1630", wx.DefaultPosition, wx.Size( 80,-1 ), 0 )
 		gSizer2.Add( self.m_txt_stopl, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
 		
 		self.m_staticText9 = wx.StaticText( self, wx.ID_ANY, u"FSR (GHZ)", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.m_staticText9.Wrap( -1 )
 		gSizer2.Add( self.m_staticText9, 0, wx.ALL|wx.ALIGN_CENTER_HORIZONTAL|wx.ALIGN_CENTER_VERTICAL, 5 )
 		
-		self.m_txt_fsr0 = wx.TextCtrl( self, wx.ID_ANY, u"300", wx.DefaultPosition, wx.Size( 40,-1 ), 0 )
+		self.m_txt_fsr0 = wx.TextCtrl( self, wx.ID_ANY, u"300", wx.DefaultPosition, wx.Size( 80,-1 ), 0 )
 		gSizer2.Add( self.m_txt_fsr0, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5 )
 		
 		
@@ -107,6 +107,11 @@ class scanMonitor ( wx.Frame ):
 		
 		self.m_txt_fit = wx.TextCtrl( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.Size( -1,60 ), wx.TE_MULTILINE|wx.TE_READONLY )
 		bSizer3.Add( self.m_txt_fit, 0, wx.ALL|wx.EXPAND, 5 )
+		
+		m_chc_laserChoices = []
+		self.m_chc_laser = wx.Choice( self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, m_chc_laserChoices, 0 )
+		self.m_chc_laser.SetSelection( 1 )
+		bSizer3.Add( self.m_chc_laser, 0, wx.ALL, 5 )
 		
 		bSizer5 = wx.BoxSizer( wx.HORIZONTAL )
 		
