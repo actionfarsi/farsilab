@@ -6,6 +6,7 @@ from time import sleep
 ## Set the path to the farsilab directory (if not installed) #######
 sys.path.append(r'C:\\dropbox\\Gaeta-lab\\farsilab\\')
 sys.path.append(r'E:\\ActionDropbox\\Dropbox\\Gaeta-lab\\farsilab\\')
+sys.path.append(r'E:\\farsilab\\')
 
 import matplotlib
 from numpy import *
@@ -17,7 +18,7 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as Toolbar
 from matplotlib.figure import Figure
 
-from laserScanPanelForm import scanMonitor
+from control.instruments.laserScanPanelForm import scanMonitor
 
 from fitting import Parameter, fit
 
@@ -31,12 +32,14 @@ b = Parameter(0.1 ,'b')
 l0 = Parameter(1550, 'lo')
 gamma = Parameter(0.001,'gamma')
 y0 = Parameter(0.7, 'y0')
-split=Parameter(0.5, 'split')    
+split=Parameter(0.001, 'split')    
         
-fit_functions = {   'lorentz': [[a,l0,gamma, y0], 
-                              lambda x: a() /(1 + ((x-l0())/gamma())**2) + y0() ],
-                    'split': [[a,l0,gamma, y0, b],
-                              lambda x: a() /(1 + ((x-l0())/gamma())**2)+a()/(1 + ((x-l0())/gamma())**2) +y0()+b()*x] }
+fit_functions = {   'lorentz': [[a,l0,gamma, y0,b], 
+                              lambda x: a() /(1 + ((x-l0())/gamma())**2) + y0() +b()*x],
+                    'split': [[a,l0,gamma, y0, b,split],
+                              lambda x: a() /(1 + ((x-l0()-split())/gamma())**2)+a()/(1 + ((x-l0()+split())/gamma())**2) +y0()+b()*x],
+                    'dumb': [[a],
+                            lambda x: a()*x]}
 
 # Instrument handlers
 error_log = ""
@@ -50,7 +53,7 @@ try:
     ## Init GPIP
     import visa
     ## Init NIDAQmx
-    import instrument.daq   
+    import control.daq  as daq 
 except ImportError:
     error_log = error_log + "Import error: verify libraries\n"
     error_visa = True
@@ -68,20 +71,21 @@ except:
     
 
 ## Instrument ################################################
-def scan_and_read(wl, step_time = 0.7):
+def scan_and_read(wl, step_time = 0.6):
     physical_channel = "dev2/ai0"      # Physical Channel: AI0 on Dev1
 
     voltage_task = daq.InputTask('Dev2')
     voltage_task.add_analog_voltage_channel(physical_channel, terminal_config = "rse")
     
-    data = zeros(wl)
+    data = zeros(len(wl))
     samples_read = 0
     
-    for l in wl:
+    for i,l in enumerate(wl):
+        print l, 
         gpib_laser.write("wav %fnm"%l)
         print 1. * samples_read/len(wl) #ratio of scan progress
         sleep(step_time)
-        data.extend(voltage_task.read())
+        data[i] = voltage_task.read()
         samples_read=samples_read+1
         
     ## Save data
@@ -104,7 +108,7 @@ def measure_l(wl):
     "Using wavemeter q8326"
     # Set laser to wavelenght
     sleep(0.5)
-    gpib_laser.write("wav %fnm"%l)
+    gpib_laser.write("wav %fnm"%wl)
     sleep(2)
     
     sleep(6)
@@ -163,11 +167,13 @@ class AutoScan(threading.Thread):
             
             
             ## Update FSR
-            if len(res_list) > 1: 
+            if len(res_list) > 0: 
                 fsr0 = c0/res_list[-1]['precise_l0'] - c0/r['precise_l0']
             print fsr0
+            r['fsr0'] = fsr0
             
-            res_next = c0/(c0/r['precise_l0'] - fsr0)
+            
+            res_next = c0/(c0/r['l0'] - fsr0)
             print res_next
             
             res_list.append(r)
@@ -248,7 +254,7 @@ class Monitor(scanMonitor):
         
         for f in fit_functions.iterkeys():
             self.m_chc_fit.Append(f)
-        self.m_chc_fit.SetSelection(1)
+        self.m_chc_fit.SetSelection(0)
         
         self.m_txt_fit.SetValue(error_log)
         
@@ -275,10 +281,13 @@ class Monitor(scanMonitor):
         
         r = res_list[i]
         
-        self.m_txt_l0.SetValue("%d"%r['l0'])
-        self.m_txt_g.SetValue("%d"%r['gamma'])
-        self.m_txt_y0.SetValue("%d"%r['y0'])
-        self.m_txt_area.SetValue("%d"%r['a'])
+        self.m_txt_l0.SetValue("%.4f"%r['l0'])
+        self.m_txt_g.SetValue("%.2f"%(1000*r['gamma']))
+        self.m_txt_y0.SetValue("%.2f"%r['y0'])
+        self.m_txt_area.SetValue("%.2f"%r['a'])
+        
+        if 'fsr0' in r:
+            self.m_txt_fsr0.SetValue("%.2f"%r['fsr0'])
         
         # Write the 
         x,y = r['data']
@@ -286,16 +295,32 @@ class Monitor(scanMonitor):
         
         self.axis[0].hold(False)
         self.axis[0].plot(x,y,'o')
+        self.axis[0].hold(True)
         self.axis[0].plot(xf,yf,'-')
+    
+        self.axis[0].set_ylim(amin(y)*0.8,amax(y)*1.2)
+    
     
         # Highlight point on the bottom
         self.axis[1].hold(False)
-        ress = [a['l0'] for a in res_list]
+        ress = array([r['l0'] for r in res_list if 'fsr0' in r])
+        fsr0 = [r['fsr0'] for r in res_list if 'fsr0' in r]
         
-        self.axis[1].plot(ress)
+        if len(fsr0) > 2:
+            fsr0_laser = -c0*diff(1/ress)
+            fsr0_laser = r_[fsr0_laser[0], fsr0_laser]
+        
+            self.axis[1].plot(fsr0_laser,'.', label = "Laser")
+            
         self.axis[1].hold(True)
-        self.axis[1].plot(i,ress[i],'ro')
+        self.axis[1].plot(fsr0, label = "Wavemeter" )
+        
+        if 'fsr0' in res_list[i]:
+            self.axis[1].plot(i,res_list[i]['fsr0'],'ro')
         self.axis[1].set_xlim(-1,len(res_list))
+        
+        self.axis[1].legend()
+        
         self.canvases[0].draw()
         self.canvases[1].draw()
     
@@ -334,16 +359,16 @@ class Monitor(scanMonitor):
 		self.readLabels()
         
     def readLabels(self):
-        range = float(self.m_txt_range.GetValue())
-        l0 = float(self.m_txt_startl.GetValue())
-        step_size = float(self.m_txt_res.GetValue())
+        range = float(self.m_txt_range.GetValue())/1000.
+        l0 = float(self.m_txt_l0.GetValue())
+        step_size = float(self.m_txt_res.GetValue())/1000.
         auto_start = float(self.m_txt_startl.GetValue())
         auto_stop = float(self.m_txt_stopl.GetValue())
         fsr0 = float(self.m_txt_fsr0.GetValue())
         ## update the npoint label
         self.m_txt_npoints.SetLabel("%d"%(range/step_size))
         options = {'l0': l0,
-                   'gamma': float(self.m_txt_g.GetValue()), 
+                   'gamma': float(self.m_txt_g.GetValue())/1000, 
                    'rnge': range,
                    'step_size': step_size,
                    'auto_range': [auto_start, auto_stop],
@@ -386,18 +411,63 @@ class Monitor(scanMonitor):
         self.plotRes(i)
 
     def saveRes( self, event ):
-        ress = [ (a['l0'], a['gamma'], a['precise_l0']) for a in res_list]
+        ress = [ (a['l0'], a['gamma'], a['precise_l0'], a['fsr0']) for a in res_list]
         ## TODO Order the resonances
-        ress = array(ress).T
+        ress = array(ress)
         
         filename = "resonances_%s.txt"%time.strftime("%H%M")
-        savetxt(filename, ress,
+        dlg = wx.FileDialog(
+            self, message="Save file",
+            defaultDir=os.getcwd(), 
+            defaultFile= filename,
+            wildcard="Simple data (*.txt)|*.txt",
+            style=wx.SAVE
+            )
+
+        # Show the dialog and retrieve the user response. If it is the OK response, 
+        # process the data.
+        if dlg.ShowModal() == wx.ID_OK:
+            # This returns a Python list of files that were selected.
+            filename = dlg.GetPath()
+            try:
+                savetxt(filename, ress,
                                         fmt="%.5f")
+                self.plotRes(0)
+            except Exception as e:
+                print e," raised"
+                
+        # Destroy the dialog. Don't do this until you are done with it!
+        # BAD things can happen otherwise!
+        dlg.Destroy()
+        
+        
 	
 
     def saveAll( self, event ):
-        filename = open("resonances_%s.pik"%time.strftime("%H%M"),'w')
-        cPickle.dump(res_list,filename,)
+        filename = "resonances_%s.pik"%time.strftime("%H%M")
+        dlg = wx.FileDialog(
+            self, message="Choose a file",
+            defaultDir=os.getcwd(), 
+            defaultFile=filename,
+            wildcard="Python pickled (*.pik)|*.pik",
+            style=wx.SAVE
+            )
+
+        # Show the dialog and retrieve the user response. If it is the OK response, 
+        # process the data.
+        if dlg.ShowModal() == wx.ID_OK:
+            # This returns a Python list of files that were selected.
+            filename = dlg.GetPath()
+            try:
+                cPickle.dump(res_list, open(filename,'w'))
+                self.plotRes(0)
+            except Exception as e:
+                print e," raised"
+                
+        # Destroy the dialog. Don't do this until you are done with it!
+        # BAD things can happen otherwise!
+        dlg.Destroy()
+        
         
     def loadAll( self, event ):
         dlg = wx.FileDialog(
