@@ -51,18 +51,27 @@ def agilent_wl(i, wl):
     i.write("wav %fnm"%wl)
 
 def osics_wl(i, wl, ch=1):
-    cw = i.ask_for_values("ch1:l?")
+    print "Asking ", "ch%d:l?"%ch,
+    cw = i.ask_for_values("ch%d:l?"%ch)
+    print cw
     i.write("ch%d:l=%f"%(ch,wl))
     ## If laser scans backward, waits 10 seconds
-    if cw > wl:
+    if cw[1] > wl:
+        print "Moving wavelenght slowly back"
         sleep(10)
+    else:
+        print "Set wl"
+        sleep(1)
+        
+        
 
 osics1_wl = lambda i,wl: osics_wl(i,wl,1)
 osics2_wl = lambda i,wl: osics_wl(i,wl,2)
         
                           # GPIB, handler, setwl
-laser_gpib_list = [ 'agilent': [ 20, (agilent_wl)],
-                    'osics':   [ 11, (osics_wl1, osics_wl2)], ]
+laser_gpib_list = { 'agilent155': [ 20, [agilent_wl,]],
+                    'agilent140': [ 19, [agilent_wl,]],
+                    'osics':   [ 11, [osics1_wl, osics2_wl]], }
 
 laser_list = { 'dummy': lambda x: 0 }
                
@@ -77,23 +86,28 @@ except ImportError:
     error_log = error_log + "Import error: verify libraries\n"
     error_visa = True
 
-for name, (addr,f_wl) in laser_list.items():
+for name, (addr,f_wl) in laser_gpib_list.items():
     try:    
         i = visa.instrument("GPIB::%d"%(addr)) # Set Laser Address
+        i.timeout = 2
+        print i
+        print i.ask("*idn?")
         for j, f in enumerate(f_wl):
-            laser_list[name+j] = lambda wl: f(i,wl)
+            laser_list[name+"%d"%j] = (i, f)
+        
             
     except:
+        
         error_log = error_log + "Laser %s on GPIB::%d not connected\n"%(name, addr)
 
 try:        
     gpib_wm = visa.Instrument("GPIB::9")
 except:
     error_log = error_log + "Wavemeter not connected\n"
-    
+
 
 ## Instrument ################################################
-def scan_and_read(wl, setLaserWl, step_time = 0.6):
+def scan_and_read(wl, setLaserWl, step_time = 0.8):
     physical_channel = "dev2/ai0"      # Physical Channel: AI0 on Dev1
 
     voltage_task = daq.InputTask('Dev2')
@@ -104,7 +118,7 @@ def scan_and_read(wl, setLaserWl, step_time = 0.6):
     
     for i,l in enumerate(wl):
         print l, 
-        setLaserWl(wl)
+        setLaserWl(l)
         print 1. * samples_read/len(wl) #ratio of scan progress
         sleep(step_time)
         data[i] = voltage_task.read()
@@ -129,19 +143,32 @@ def measure_l(wl, setLaserWl):
         
     "Using wavemeter q8326"
     # Set laser to wavelenght
-    sleep(0.5)
-    setLaserWl(wl)
-    sleep(2)
+    #sleep(0.5)
+    #setLaserWl(wl)
+    sleep(5)
     
-    sleep(6)
+    #sleep(6)
     return gpib_wm.ask_for_values("E")[0]/1e-9  #in nm
 
 ## Analysis ##############################################################                             
 def scan_and_fit(wl0, step_size, range, laser_name, function_name = 'lorentz'):
     wl = arange(wl0 - range/2, wl0 + range/2, step_size)
-    setLaserWl = laser_list[laser_name]
     
-    y = scan_and_read(wl, setLaserWl)
+    
+    inst = laser_list[laser_name][0]
+    setLaserWl = lambda wl : laser_list[laser_name][1](inst,wl)
+    print laser_name
+    
+    # we scan half
+    
+    y1 = scan_and_read(wl[:len(wl)/2], setLaserWl)
+    p_l0 = measure_l(wl[len(wl)/2-1],  setLaserWl) ## Wavemeter measurement of the minima
+    y2 = scan_and_read(wl[len(wl)/2:], setLaserWl)
+    
+    y = r_[y1,y2]
+    
+    ## Wavemeter wavelength delta
+    delta_l0 = p_l0 - wl[len(wl)/2-1]
     
     ## Expected values for parameters
     l0.set(wl[argmin(y)])
@@ -154,10 +181,10 @@ def scan_and_fit(wl0, step_size, range, laser_name, function_name = 'lorentz'):
     
     xt = linspace(wl[0],wl[-1], len(y)*10)
     
-    p_l0 = measure_l(l0(), setLaserWl) ## Wavemeter measurement of the minima
-            
     
-    r = {'l0': l0(), 'gamma':gamma(), 'precise_l0': p_l0,
+    print "Precision wl = ", l0() + delta_l0        
+    
+    r = {'l0': l0(), 'gamma':gamma(), 'precise_l0': l0() + delta_l0,
           'y0': y0(), 'a': a(),
          'data':c_[wl, y].T, 'fit': c_[xt, f(xt)].T}
     
@@ -181,32 +208,66 @@ class AutoScan(threading.Thread):
         res_next = auto_range[0]
         fsr0 = self.options['fsr0']
         
+        ## Scan 1
+        # while (res_next < auto_range[1]):
+            # print res_next
+            
+            # r = scan_and_fit(res_next, self.options['step_size'], 
+                                       # self.options['rnge'],
+                                       # function_name = self.options['fit_function'],
+                                       # laser_name = self.options['laser_name'],
+                                       # )
+            
+            
+            # ## Update FSR
+            # if len(res_list) > 0: 
+                # fsr0 = c0/res_list[-1]['precise_l0'] - c0/r['precise_l0']
+            # print fsr0
+            # r['fsr0'] = fsr0
+            
+            
+            # res_next = c0/(c0/r['l0'] - fsr0)
+            # print res_next
+            
+            # res_list.append(r)
+            
+            # self.plotRes(len(res_list)-1)
         
-        while (res_next >= auto_range[0] and res_next < auto_range[1]):
-            print res_next
+            # if self.abort: break
+        
+        ## Scan 2 (jump between two wavelength)
+        print "Scan Type 2: Jump between wl-start and wl-stop"
+        w1 = auto_range[0]
+        w2 = auto_range[1]
+        
+        while True:
+            print w1
             
-            r = scan_and_fit(res_next, self.options['step_size'], 
+            r = scan_and_fit(w1, self.options['step_size'], 
                                        self.options['rnge'],
-                                       function_name = self.options['fit_function']
-                                       laser_name = self.options['laser_name'])
+                                       function_name = self.options['fit_function'],
+                                       laser_name = self.options['laser_name'],
+                                       )
             
-            
-            ## Update FSR
-            if len(res_list) > 0: 
-                fsr0 = c0/res_list[-1]['precise_l0'] - c0/r['precise_l0']
-            print fsr0
+            ## MEasure variation from given wl
+            fsr0 = c0/w1 - c0/r['precise_l0']
             r['fsr0'] = fsr0
-            
-            
-            res_next = c0/(c0/r['l0'] - fsr0)
-            print res_next
-            
             res_list.append(r)
+            self.plotRes(len(res_list)-1)
             
+            print w2
+            r = scan_and_fit(w2, self.options['step_size'], 
+                                       self.options['rnge'],
+                                       function_name = self.options['fit_function'],
+                                       laser_name = self.options['laser_name'],
+                                       )
+            
+            fsr0 = c0/w2 - c0/r['precise_l0']
+            r['fsr0'] = fsr0
+            res_list.append(r)
             self.plotRes(len(res_list)-1)
         
             if self.abort: break
-            
         print "Done"
         wx.PostEvent(self.panel, ResultEvent(0))
             #np.savetxt(filename, c_[resonances, gammas, laser_res, FSRs],
@@ -357,8 +418,8 @@ class Monitor(scanMonitor):
         r = scan_and_fit(wl0 = options['l0'],
                          step_size = options['step_size'],
                          range = options['rnge'],
-                         function_name = options['fit_function']
-                         laser_name = options['laser_name']
+                         function_name = options['fit_function'],
+                         laser_name = options['laser_name'],
                          )
     
         res_list.append(r)
