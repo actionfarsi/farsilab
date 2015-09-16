@@ -40,7 +40,7 @@ fit_functions = {   'lorentz': [[a,l0,gamma, y0,b],
                               lambda x: a() /(1 + ((x-l0()-split())/gamma())**2)+a()/(1 + ((x-l0()+split())/gamma())**2) +y0()+b()*x],
                     'dumb': [[a],
                             lambda x: a()*x]}
-
+                            
 # Instrument handlers
 error_log = ""
 error_visa = False
@@ -63,7 +63,67 @@ def osics_wl(i, wl, ch=1):
         print "Set wl"
         sleep(1)
         
+def script_scan(options, abort, plot_hook):
+    auto_range = options['auto_range']
+    res_next = auto_range[0]
+    fsr0 = options['fsr0']
+    
+    while (res_next < auto_range[1]):
+        print res_next
         
+        r = scan_and_fit(res_next, options['step_size'], 
+                                   options['rnge'],
+                                   function_name = options['fit_function'],
+                                   laser_name = options['laser_name'],
+                                   )
+        
+        
+        ## Update FSR
+        if len(res_list) > 0: 
+            fsr0 = c0/res_list[-1]['precise_l0'] - c0/r['precise_l0']
+        print fsr0
+        r['fsr0'] = fsr0
+        
+        
+        res_next = c0/(c0/r['l0'] - fsr0)
+        print res_next
+        
+        res_list.append(r)
+        
+        plot_hook(len(res_list)-1)
+        if abort: break
+        
+def script_2wls(options, plot_hook):
+    print "Scan Type 2: Jump between wl-start and wl-stop"
+    w1, w2 = options['auto_range']
+    
+    while True:
+        print w1
+        r = scan_and_fit(w1, options['step_size'], 
+                             options['rnge'],
+                                   function_name = options['fit_function'],
+                                   laser_name = options['laser_name'],
+                                   )
+        
+        ## MEasure variation from given wl
+        fsr0 = c0/w1 - c0/r['precise_l0']
+        r['fsr0'] = fsr0
+        res_list.append(r)
+        plot_hook(len(res_list)-1)
+        
+        print w2
+        r = scan_and_fit(w2, options['step_size'], 
+                             options['rnge'],
+                                   function_name = options['fit_function'],
+                                   laser_name = options['laser_name'],
+                                   )
+        
+        fsr0 = c0/w2 - c0/r['precise_l0']
+        r['fsr0'] = fsr0
+        res_list.append(r)
+        
+        plot_hook(len(res_list)-1)
+        if abort: break
 
 osics1_wl = lambda i,wl: osics_wl(i,wl,1)
 osics2_wl = lambda i,wl: osics_wl(i,wl,2)
@@ -75,7 +135,8 @@ laser_gpib_list = { 'agilent155': [ 20, [agilent_wl,]],
 
 laser_list = { 'dummy': lambda x: 0 }
                
-               
+autoscan_scripts = { 'scan through': script_scan,
+                     'scan_2wls': script_2wls,}               
                
 try:
     ## Init GPIP
@@ -204,70 +265,8 @@ class AutoScan(threading.Thread):
     def run(self):
         ## Lock button
         self.abort = False
-        auto_range = self.options['auto_range']
-        res_next = auto_range[0]
-        fsr0 = self.options['fsr0']
-        
-        ## Scan 1
-        # while (res_next < auto_range[1]):
-            # print res_next
+        autoscan_script[self.options['auto_script']](self.options, self.abort, self.plotRes())
             
-            # r = scan_and_fit(res_next, self.options['step_size'], 
-                                       # self.options['rnge'],
-                                       # function_name = self.options['fit_function'],
-                                       # laser_name = self.options['laser_name'],
-                                       # )
-            
-            
-            # ## Update FSR
-            # if len(res_list) > 0: 
-                # fsr0 = c0/res_list[-1]['precise_l0'] - c0/r['precise_l0']
-            # print fsr0
-            # r['fsr0'] = fsr0
-            
-            
-            # res_next = c0/(c0/r['l0'] - fsr0)
-            # print res_next
-            
-            # res_list.append(r)
-            
-            # self.plotRes(len(res_list)-1)
-        
-            # if self.abort: break
-        
-        ## Scan 2 (jump between two wavelength)
-        print "Scan Type 2: Jump between wl-start and wl-stop"
-        w1 = auto_range[0]
-        w2 = auto_range[1]
-        
-        while True:
-            print w1
-            
-            r = scan_and_fit(w1, self.options['step_size'], 
-                                       self.options['rnge'],
-                                       function_name = self.options['fit_function'],
-                                       laser_name = self.options['laser_name'],
-                                       )
-            
-            ## MEasure variation from given wl
-            fsr0 = c0/w1 - c0/r['precise_l0']
-            r['fsr0'] = fsr0
-            res_list.append(r)
-            self.plotRes(len(res_list)-1)
-            
-            print w2
-            r = scan_and_fit(w2, self.options['step_size'], 
-                                       self.options['rnge'],
-                                       function_name = self.options['fit_function'],
-                                       laser_name = self.options['laser_name'],
-                                       )
-            
-            fsr0 = c0/w2 - c0/r['precise_l0']
-            r['fsr0'] = fsr0
-            res_list.append(r)
-            self.plotRes(len(res_list)-1)
-        
-            if self.abort: break
         print "Done"
         wx.PostEvent(self.panel, ResultEvent(0))
             #np.savetxt(filename, c_[resonances, gammas, laser_res, FSRs],
@@ -342,6 +341,8 @@ class Monitor(scanMonitor):
             self.m_chc_fit.Append(f)
         for f in laser_list.iterkeys():
             self.m_chc_laser.Append(f)
+        for f in autoscan_scripts.iterkeys():
+            self.m_chc_autoscr.Append(f)
             
         self.m_chc_fit.SetSelection(0)
         
@@ -466,8 +467,10 @@ class Monitor(scanMonitor):
                    'fsr0': fsr0,
                    'fit_function': self.m_chc_fit.GetStringSelection(),
                    'laser_name': self.m_chc_laser.GetStringSelection(),
+                   'auto_script': self.m_ch_autoscr.GetStringSelection(),
                    'y0':float(self.m_txt_y0.GetValue()),
                    'a': float(self.m_txt_area.GetValue())
+                   
                    }
         fit_params = []
         return options

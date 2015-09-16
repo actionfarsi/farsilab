@@ -108,10 +108,24 @@ class scanMonitor ( wx.Frame ):
 		self.m_txt_fit = wx.TextCtrl( self, wx.ID_ANY, wx.EmptyString, wx.DefaultPosition, wx.Size( -1,60 ), wx.TE_MULTILINE|wx.TE_READONLY )
 		bSizer3.Add( self.m_txt_fit, 0, wx.ALL|wx.EXPAND, 5 )
 		
+		bSizer6 = wx.BoxSizer( wx.HORIZONTAL )
+		
 		m_chc_laserChoices = []
 		self.m_chc_laser = wx.Choice( self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, m_chc_laserChoices, 0 )
 		self.m_chc_laser.SetSelection( 1 )
-		bSizer3.Add( self.m_chc_laser, 0, wx.ALL, 5 )
+		bSizer6.Add( self.m_chc_laser, 0, wx.ALL, 5 )
+		
+		self.m_staticText14 = wx.StaticText( self, wx.ID_ANY, u"Autoscan script", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.m_staticText14.Wrap( -1 )
+		bSizer6.Add( self.m_staticText14, 0, wx.ALL, 5 )
+		
+		m_chc_autoscrChoices = []
+		self.m_chc_autoscr = wx.Choice( self, wx.ID_ANY, wx.DefaultPosition, wx.DefaultSize, m_chc_autoscrChoices, 0 )
+		self.m_chc_autoscr.SetSelection( 0 )
+		bSizer6.Add( self.m_chc_autoscr, 0, wx.ALL, 5 )
+		
+		
+		bSizer3.Add( bSizer6, 0, 0, 5 )
 		
 		bSizer5 = wx.BoxSizer( wx.HORIZONTAL )
 		

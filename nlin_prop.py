@@ -5,7 +5,7 @@ non-linear Schroedinger, in the context of beam propagation.
 for convention A(t,z) is the field
 """
 
-from res.units import *
+from utils.units import *
 from numpy import *
 from numpy.fft import fft, ifft, fftfreq, fftshift, ifftshift
 from scipy.special import erf
@@ -186,218 +186,219 @@ def split_step(A0, z_array,       # Array for solution points
     print "Total iterations: ", iters
     return sols
 
-from ctypes import *
-import sys
-    #sys.path.append("C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v4.0\bin")
-dll = windll.LoadLibrary("cufft32_40_17")
+ 
+# from ctypes import *
+# import sys
+    # #sys.path.append("C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v4.0\bin")
+# dll = windll.LoadLibrary("cufft32_40_17")
 
-def split_step_GPU(A0, z_array,       # Array for solution points
-                t_op = 0, w_op = 0, nlin = 0,  # Constant operators 
-                dt = 1,           # sampling time
-                t_nl_op = None,   # Additional operator f(A, dt, z)
-                apod = True,      # Boundary conditition
-                varying_operator = False, # Do operators vary in x
-                dynamic_predictor = True,
-                plot_hook = None, n_plots = 3,  # not used anymore
-                tollerance = 0.04, ):
+# def split_step_GPU(A0, z_array,       # Array for solution points
+                # t_op = 0, w_op = 0, nlin = 0,  # Constant operators 
+                # dt = 1,           # sampling time
+                # t_nl_op = None,   # Additional operator f(A, dt, z)
+                # apod = True,      # Boundary conditition
+                # varying_operator = False, # Do operators vary in x
+                # dynamic_predictor = True,
+                # plot_hook = None, n_plots = 3,  # not used anymore
+                # tollerance = 0.04, ):
     
-    import pycuda.autoinit
+    # import pycuda.autoinit
 
-    from pycuda.tools import make_default_context, dtype_to_ctype
-    import pycuda.gpuarray as gpuarray
-    from pycuda import cumath
-    from pyfft.cuda import Plan
-    from pycuda.compiler import SourceModule
-    from pycuda.driver import Context
-    from pycuda.elementwise import get_axpbyz_kernel, get_axpbz_kernel, get_binary_op_kernel, get_elwise_kernel,ElementwiseKernel
+    # from pycuda.tools import make_default_context, dtype_to_ctype
+    # import pycuda.gpuarray as gpuarray
+    # from pycuda import cumath
+    # from pyfft.cuda import Plan
+    # from pycuda.compiler import SourceModule
+    # from pycuda.driver import Context
+    # from pycuda.elementwise import get_axpbyz_kernel, get_axpbz_kernel, get_binary_op_kernel, get_elwise_kernel,ElementwiseKernel
             
-    ## Initialization
-    n_points = A0.shape[0]
-    # w = fftfreq(npoints, dx) * 2 * pi
-    A_t = A0[:] +0.j
-    #A_t.dtype = complex64
-    A_w = fft(A_t) * dt
+    # ## Initialization
+    # n_points = A0.shape[0]
+    # # w = fftfreq(npoints, dx) * 2 * pi
+    # A_t = A0[:] +0.j
+    # #A_t.dtype = complex64
+    # A_w = fft(A_t) * dt
     
     
-    # Apodization (AK boundary conditions)
-    # TODO making it smooth
-    apod_array = ones(n_points, dtype = complex64)
-    apod_array[0:n_points/50] = 0
-    apod_array[-n_points/50:-1] = 0
+    # # Apodization (AK boundary conditions)
+    # # TODO making it smooth
+    # apod_array = ones(n_points, dtype = complex64)
+    # apod_array[0:n_points/50] = 0
+    # apod_array[-n_points/50:-1] = 0
 
-    z0 = z_array[0]
-    zf = z_array[-1]
+    # z0 = z_array[0]
+    # zf = z_array[-1]
     
-    delta_z = 1.*(z_array[1]-z_array[0])/4
-    done_once = False
+    # delta_z = 1.*(z_array[1]-z_array[0])/4
+    # done_once = False
 
-    #plan = c_uint()
-    #dll.cufftPlan1d(byref(plan), n_points, 0x29, 1)
-    #fft_g  = lambda x, y: dll.cufftExecC2C(plan, x.ptr, y.ptr, -1)
-    #ifft_g = lambda x, y: dll.cufftExecC2C(plan, x.ptr, y.ptr, 1)
+    # #plan = c_uint()
+    # #dll.cufftPlan1d(byref(plan), n_points, 0x29, 1)
+    # #fft_g  = lambda x, y: dll.cufftExecC2C(plan, x.ptr, y.ptr, -1)
+    # #ifft_g = lambda x, y: dll.cufftExecC2C(plan, x.ptr, y.ptr, 1)
     
-    ## GPU modules #####
-    if pycuda.autoinit.context:
-        context = pycuda.autoinit.context
-    else:
-        context =  make_default_context()
-    block = (16,1,1)
-    grid  = (n_points/block[0], 1)
+    # ## GPU modules #####
+    # if pycuda.autoinit.context:
+        # context = pycuda.autoinit.context
+    # else:
+        # context =  make_default_context()
+    # block = (16,1,1)
+    # grid  = (n_points/block[0], 1)
 
-    ## Init GPU kernels ####
-    ## fft, scale dx is included in the definition here
-    plan = Plan(n_points,wait_for_finish = True, scale = dt)   
-    fft_g  = lambda ain, aout: plan.execute(ain, aout,)
-    ifft_g = lambda x, y: plan.execute(x, y, inverse = True)
+    # ## Init GPU kernels ####
+    # ## fft, scale dx is included in the definition here
+    # plan = Plan(n_points,wait_for_finish = True, scale = dt)   
+    # fft_g  = lambda ain, aout: plan.execute(ain, aout,)
+    # ifft_g = lambda x, y: plan.execute(x, y, inverse = True)
 
-    ## Multiplication
-    prod  = ElementwiseKernel(
-            "pycuda::complex<float> *x, pycuda::complex<float> *y, pycuda::complex<float> *z",
-            """
-            z[i] = x[i] * y[i];
-            """,
-            "product",
-            preamble = "")
-    #prod  = lambda x,y,z: prod(x,y,z, block, grid)
+    # ## Multiplication
+    # prod  = ElementwiseKernel(
+            # "pycuda::complex<float> *x, pycuda::complex<float> *y, pycuda::complex<float> *z",
+            # """
+            # z[i] = x[i] * y[i];
+            # """,
+            # "product",
+            # preamble = "")
+    # #prod  = lambda x,y,z: prod(x,y,z, block, grid)
     
-    ## Non-linearity
-    nonLinear = ElementwiseKernel(
-            "pycuda::complex<float> *x, pycuda::complex<float> nlin, pycuda::complex<float> *y, pycuda::complex<float> *z",
-            """
-            pycuda::complex<float> I_UNIT(0.,1.);
-            float I = pycuda::abs(y[i]);
-            z[i] = x[i] * pycuda::exp(I_UNIT * I * nlin);
-            """,
-            "nonLinear",
-            preamble = "")
+    # ## Non-linearity
+    # nonLinear = ElementwiseKernel(
+            # "pycuda::complex<float> *x, pycuda::complex<float> nlin, pycuda::complex<float> *y, pycuda::complex<float> *z",
+            # """
+            # pycuda::complex<float> I_UNIT(0.,1.);
+            # float I = pycuda::abs(y[i]);
+            # z[i] = x[i] * pycuda::exp(I_UNIT * I * nlin);
+            # """,
+            # "nonLinear",
+            # preamble = "")
     
-    ## Evaluate the solution with current values at delta_z step
-    ## separated so that can be re-used for error prediction
-    ## contains some lazy eveluation just to be CUDA-implementation ready
-    ## and reducing the number of array creation
+    # ## Evaluate the solution with current values at delta_z step
+    # ## separated so that can be re-used for error prediction
+    # ## contains some lazy eveluation just to be CUDA-implementation ready
+    # ## and reducing the number of array creation
     
-    def f(A_t, A_w, dz = delta_z):
-        if f.delta_z != dz:
-            f.w_exp = cumath.exp(-1j * dz/2. * w_op)
-            f.t_exp = cumath.exp(-1j * dz * t_op)
-            f.delta_z = dz
+    # def f(A_t, A_w, dz = delta_z):
+        # if f.delta_z != dz:
+            # f.w_exp = cumath.exp(-1j * dz/2. * w_op)
+            # f.t_exp = cumath.exp(-1j * dz * t_op)
+            # f.delta_z = dz
         
-        ## Dispersion (I pass)
-        f.A_t = A_t
-        f.A_w = A_w
+        # ## Dispersion (I pass)
+        # f.A_t = A_t
+        # f.A_w = A_w
         
-        #print A_w.get()[n_points/2],     
-        prod(A_w, f.w_exp, A_w)
-        #A_w = f.w_exp*A_w
-        #print A_w.get()[n_points/2],
-        ifft_g(f.A_w, f.A_t)  ## Scale factor included in fft_g
+        # #print A_w.get()[n_points/2],     
+        # prod(A_w, f.w_exp, A_w)
+        # #A_w = f.w_exp*A_w
+        # #print A_w.get()[n_points/2],
+        # ifft_g(f.A_w, f.A_t)  ## Scale factor included in fft_g
         
         
-        ## Constant potential term
-        prod(f.A_t, f.t_exp, f.A_t)
+        # ## Constant potential term
+        # prod(f.A_t, f.t_exp, f.A_t)
 
-        ## Nonlinear operator as intensity dependency
-        if nlin != 0:
-            f.A_t = f.A_t * cumath.exp(-1j * delta_z * nlin * f.A_t * f.A_t.conj())
-        ## Additional nonlinear terms as a function t_nl_op(A(t),dt,z)
-        if t_nl_op != None:
-            f.A_t = f.A_t * cumath.exp(-1j * delta_z * t_nl_op(f.A_t, dt, z0+delta_z/2) )
-        ## Apodization
-        if apod:
-            prod(f.A_t, apod_array, f.A_t)
+        # ## Nonlinear operator as intensity dependency
+        # if nlin != 0:
+            # f.A_t = f.A_t * cumath.exp(-1j * delta_z * nlin * f.A_t * f.A_t.conj())
+        # ## Additional nonlinear terms as a function t_nl_op(A(t),dt,z)
+        # if t_nl_op != None:
+            # f.A_t = f.A_t * cumath.exp(-1j * delta_z * t_nl_op(f.A_t, dt, z0+delta_z/2) )
+        # ## Apodization
+        # if apod:
+            # prod(f.A_t, apod_array, f.A_t)
             
-        fft_g(f.A_t, f.A_w) ## Scale factor included in fft_g
+        # fft_g(f.A_t, f.A_w) ## Scale factor included in fft_g
         
-        ## Dispersion (II pass)
-        prod(f.A_w, f.w_exp, f.A_w)
+        # ## Dispersion (II pass)
+        # prod(f.A_w, f.w_exp, f.A_w)
         
-        ifft_g(f.A_w, f.A_t)  ## Scale factor included in fft_g
+        # ifft_g(f.A_w, f.A_t)  ## Scale factor included in fft_g
         
         
-        return f.A_t, f.A_w
+        # return f.A_t, f.A_w
 
-    ## Init the f function
-    f.delta_z = 0 # The rest will be evaluated lazily
+    # ## Init the f function
+    # f.delta_z = 0 # The rest will be evaluated lazily
 
-    ## Convert to GPU arrays
-    f.A_t = gpuarray.to_gpu(ones(n_points, complex64))
-    f.A_w = gpuarray.to_gpu(ones(n_points, complex64))
-    A_t   = gpuarray.to_gpu(A_t.astype(complex64))
-    A_w   = gpuarray.to_gpu(A_w.astype(complex64))
+    # ## Convert to GPU arrays
+    # f.A_t = gpuarray.to_gpu(ones(n_points, complex64))
+    # f.A_w = gpuarray.to_gpu(ones(n_points, complex64))
+    # A_t   = gpuarray.to_gpu(A_t.astype(complex64))
+    # A_w   = gpuarray.to_gpu(A_w.astype(complex64))
     
     
     
-    apod_array  = gpuarray.to_gpu(apod_array.astype(complex64))
-    if hasattr(w_op,'__len__'):
-        w_op = gpuarray.to_gpu(w_op.astype(complex64))
-    else:  ## Use array even if it's a single values, othewise error when updating dz
-        w_op = gpuarray.to_gpu(w_op*ones(n_points).astype(complex64))
-    if hasattr(t_op,'__len__'):
-        t_op = gpuarray.to_gpu(t_op.astype(complex64))
-    else:
-        t_op = gpuarray.to_gpu(t_op*ones(n_points).astype(complex64))
-    error = tollerance
+    # apod_array  = gpuarray.to_gpu(apod_array.astype(complex64))
+    # if hasattr(w_op,'__len__'):
+        # w_op = gpuarray.to_gpu(w_op.astype(complex64))
+    # else:  ## Use array even if it's a single values, othewise error when updating dz
+        # w_op = gpuarray.to_gpu(w_op*ones(n_points).astype(complex64))
+    # if hasattr(t_op,'__len__'):
+        # t_op = gpuarray.to_gpu(t_op.astype(complex64))
+    # else:
+        # t_op = gpuarray.to_gpu(t_op*ones(n_points).astype(complex64))
+    # error = tollerance
     
-    print "Ready for integration"
+    # print "Ready for integration"
     
-    ## Init loop variables
-    sol_i = 0    
-    sols  = [A0]
-    iters = 0
+    # ## Init loop variables
+    # sol_i = 0    
+    # sols  = [A0]
+    # iters = 0
     
-    ## Integration loop
-    while z0 <= zf:
-        ## Cycle check
-        if z0 >= z_array[sol_i]:
-            #print "dz = %.2e error=%.2f z = %.2e"%(delta_z,error,z0)
-            sols.append(A_t.get())
-            sol_i +=1
+    # ## Integration loop
+    # while z0 <= zf:
+        # ## Cycle check
+        # if z0 >= z_array[sol_i]:
+            # #print "dz = %.2e error=%.2f z = %.2e"%(delta_z,error,z0)
+            # sols.append(A_t.get())
+            # sol_i +=1
             
-        try:  ## Force to have steps smaller than the distance between 2 solutions
-            while z0 + delta_z >= z_array[sol_i + 1]:
-                delta_z /= 2.
-        except:
-            pass
+        # try:  ## Force to have steps smaller than the distance between 2 solutions
+            # while z0 + delta_z >= z_array[sol_i + 1]:
+                # delta_z /= 2.
+        # except:
+            # pass
     
-        ## Dynamical correction
-        while dynamic_predictor:
-            A_coarse = f(gpuarray.to_gpu(A_t.get()),
-                         gpuarray.to_gpu(A_w.get()),
-                         dz=2*delta_z)[0].get()
-            A_fine = f(*f(gpuarray.to_gpu(A_t.get()),
-                          gpuarray.to_gpu(A_w.get()),
-                         delta_z), dz=delta_z)[0].get()
-            delta = A_fine-A_coarse
-            error = sqrt( trapz(delta*delta.conj())/ \
-                          trapz(A_fine*A_fine.conj()))
-            #print "Error : ",error, " dz :", delta_z
-            if error < 2 * tollerance:
-                done_once = True
-                break  ## Error is less then the tollerance, proceed
-            delta_z = delta_z / 2.
+        # ## Dynamical correction
+        # while dynamic_predictor:
+            # A_coarse = f(gpuarray.to_gpu(A_t.get()),
+                         # gpuarray.to_gpu(A_w.get()),
+                         # dz=2*delta_z)[0].get()
+            # A_fine = f(*f(gpuarray.to_gpu(A_t.get()),
+                          # gpuarray.to_gpu(A_w.get()),
+                         # delta_z), dz=delta_z)[0].get()
+            # delta = A_fine-A_coarse
+            # error = sqrt( trapz(delta*delta.conj())/ \
+                          # trapz(A_fine*A_fine.conj()))
+            # #print "Error : ",error, " dz :", delta_z
+            # if error < 2 * tollerance:
+                # done_once = True
+                # break  ## Error is less then the tollerance, proceed
+            # delta_z = delta_z / 2.
         
-        # update step        
-        A_t, A_w = f(A_t, A_w, delta_z)
-        z0 += delta_z
-        iters += 1
+        # # update step        
+        # A_t, A_w = f(A_t, A_w, delta_z)
+        # z0 += delta_z
+        # iters += 1
         
-        # Dynamic step (additional correction for faster convergence)
-        if (dynamic_predictor or not (done_once or dynamic_predictor) ):
-            if error > tollerance:
-                delta_z = delta_z / 1.23
-            if error < 0.5/tollerance:
-                delta_z = delta_z * 1.23
+        # # Dynamic step (additional correction for faster convergence)
+        # if (dynamic_predictor or not (done_once or dynamic_predictor) ):
+            # if error > tollerance:
+                # delta_z = delta_z / 1.23
+            # if error < 0.5/tollerance:
+                # delta_z = delta_z * 1.23
                 
-        # Show the state of the loop every 200 loops (approx every few secs)
-        if iters %200 == 0:
-            print "Iter %8d (to end %8d) %4.1f %%"%(iters, 
-                            (z_array[-1]-z0)/delta_z,
-                            100.*iters/(iters+(z_array[-1]-z0)/delta_z))
+        # # Show the state of the loop every 200 loops (approx every few secs)
+        # if iters %200 == 0:
+            # print "Iter %8d (to end %8d) %4.1f %%"%(iters, 
+                            # (z_array[-1]-z0)/delta_z,
+                            # 100.*iters/(iters+(z_array[-1]-z0)/delta_z))
     
-    ## Integration is over
-    print "Total iterations: ", iters
-    ## Return array with solutions (and their ftt)
-    return sols
+    # ## Integration is over
+    # print "Total iterations: ", iters
+    # ## Return array with solutions (and their ftt)
+    # return sols
 
 ## Helper functions
 

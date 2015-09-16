@@ -5,11 +5,11 @@ import threading
 
 ## Parameters
 c0=299792458.
-res0 = 1510.4678 #guess of first Resonance
-FSR0 = 232.1 # guess of FSR in GHz
+res0 = 1559.3502 #guess of first Resonance
+FSR0 = 226.9 # guess of FSR in GHz
 
-range_width = 0.02 # width of individual scan
-step_size = 0.0002 # step size nm : use at least 0.0003 for best accuracy
+range_width = 0.020 # width of individual scan
+step_size = 0.0001 # step size nm : use at least 0.0003 for best accuracy
 range = (res0-range_width/2, res0+range_width/2)
 
 step_time = 0.7 #dwell time of the laser
@@ -95,10 +95,10 @@ b = Parameter(0.1 ,'b')
 l0 = Parameter(1550, 'lo')
 gamma = Parameter(0.001,'gamma')
 y0 = Parameter(0.7, 'y0')
-split=Parameter(0.5, 'split')
+#split=Parameter(0.5, 'split')
 
-parameters = [a,l0,gamma,y0,b,split]
-f = lambda x: a() /(1 + ((x-l0()-0.007*sin(split()))/gamma())**2)+a()/(1 + ((x-l0()+0.007*sin(split()))/gamma())**2) +y0()+b()*x
+parameters = [a,l0,gamma,y0,b]
+f = lambda x: a() /(1 + ((x-l0())/gamma())**2)+a()/(1 + ((x-l0())/gamma())**2) +y0()+b()*x
 
 def scan_and_fit(l, step_size = step_size):
     range = r_[l-range_width/2, l+range_width/2]
@@ -107,11 +107,11 @@ def scan_and_fit(l, step_size = step_size):
                         
     x = linspace(range[0],range[1],len(y))
     ## Expected values for parameters
-    l0.set(l)
+    l0.set(x[argmin(y)])
     y0.set(amax(y))
-    a.set((amin(y)-amax(y))/2)
+    a.set((amin(y)-amax(y)))
     gamma.set(0.002)
-    split.set(0.5)
+    #split.set(0.5)
 
     
     fit(f,parameters, x, y, 1)
