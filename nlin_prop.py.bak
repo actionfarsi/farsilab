@@ -126,7 +126,7 @@ def split_step(A0, z_array,       # Array for solution points
     f.A_w = ones(n_points) + 0.j
     error = tollerance
     
-    print("Ready for integration")
+    print "Ready for integration"
     
     ## Loop variable init
     sol_i = 0    
@@ -179,11 +179,11 @@ def split_step(A0, z_array,       # Array for solution points
                 delta_z = delta_z * 1.23
                 
         if iters % 200 == 0:
-            print("Iter %8d (to end %8d) %4.2f %%"%(iters,
+            print "Iter %8d (to end %8d) %4.2f %%"%(iters,
                         (z_array[-1]-z0)/delta_z,
-                        100.*iters/(iters+(z_array[-1]-z0)/delta_z)))
+                        100.*iters/(iters+(z_array[-1]-z0)/delta_z))
                 
-    print("Total iterations: ", iters)
+    print "Total iterations: ", iters
     return sols
 
  
@@ -434,7 +434,7 @@ def generate_noise(t, rms = 1.):
     
 ## Stub
 def correlation(a):
-    return [ sum(a*roll(a,i))/len(a) for i in range(len(a)) ]
+    return [ sum(a*roll(a,i))/len(a) for i in xrange(len(a)) ]
 
 ## Stub
 def disperd(e, dt, w):
@@ -456,7 +456,7 @@ def momentum(y, x, n = 2):
     x0 = trapz(x*absolute(y),x)
     d0 = trapz( (x-x0)**2 * absolute(y),x)
 
-    print("mean %.3e - momentum %dth order = %.3e"%(x0,n,d0))
+    print "mean %.3e - momentum %dth order = %.3e"%(x0,n,d0)
 
     return d0
 
@@ -719,7 +719,7 @@ def visualizer(data):
                         data = loadmat(filename, appendmat = False)
                         self.setData(data)
                     except:
-                        print(filename,"  - File error")
+                        print filename,"  - File error"
 
                 ##v = callback()
                 ##txt.SetLabel(str(v))
@@ -740,7 +740,7 @@ def visualizer(data):
                     try:
                         savemat(filename, self.data, appendmat = False)
                     except:
-                        print(filename,"  - File error")
+                        print filename,"  - File error"
             
             ## Bind the event
             self.Bind(wx.EVT_BUTTON, callbackWrap, btn) 
@@ -841,9 +841,9 @@ def getABC(l0, disp, gamma, p, reprate, deltat):
     lnl = abs(1/nlinear) # Non linear length
 
 
-    print("Omega0 = %.2e"%w0)
-    print("Dispersion Length = %.2e"%ld)
-    print("NonLinear  Length = %.2e"%lnl)
+    print "Omega0 = %.2e"%w0
+    print "Dispersion Length = %.2e"%ld
+    print "NonLinear  Length = %.2e"%lnl
 
     return (nlinear,beta2,0)
 

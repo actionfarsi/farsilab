@@ -38,4 +38,4 @@ units = {giga: 'G',
          atto: 'a'}
 
 if __name__ == "__main__":
-    print("Units");
+    print "Units";
