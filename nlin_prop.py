@@ -2,7 +2,8 @@
 A module for time-split integration both linear and
 non-linear Schroedinger, in the context of beam propagation.
 
-for convention A(t,z) is the field
+for convention A(t,z) is the field, z is the direction of propagation and 
+t is the local time.
 """
 
 from utils.units import *
@@ -17,27 +18,27 @@ import matplotlib.pyplot as pl
 import pdb
 
 def split_step(A0, z_array,       # Array for solution points
-                t_op = 0, w_op = 0, nlin = 0,  # Constant operators
-                dt = 1,           # sampling time
-                t_nl_op = None,   # Additional operator f(A, dt, z)
-                apod = True,      # Boundary conditition
-                varying_operator = False, # Do operators vary in x
-                dynamic_predictor = True,
-                plot_hook = None, n_plots = 3,  # not used anymore
-                tollerance = 0.04, ):
-    """ Perform Split step integration of nl Schroedinger eq
+               t_op = 0, w_op = 0, nlin = 0,  # Constant operators
+               dt = 1,           # sampling time
+               t_nl_op = None,   # Additional operator f(A, dt, z)
+               apod = True,      # Boundary conditions
+               varying_operator = False, # Do operators vary in x
+               dynamic_predictor = True,
+               plot_hook = None, n_plots = 3,  # not used anymore
+               tolerance = 0.04, ):
+    """ Perform Split-step integration of nl Schroedinger eq
     
     :arg A0: initial array (len should be a power of 2)
     
     :arg z_array: (must contains 0 and final point. If intermediate points are given
         the integration will give the solution at that given point, and will try
-        to use integration step smalle than the distance of 2 subquent z points
+        to use integration step smaller than the distance of 2 subquential z points
         
     :arg t_op: Operator for time-evolution
-    :arg w_op: Operator for the Fourie domain
+    :arg w_op: Operator for the Fourier domain
     :arg nlin: Non-linear operator, nlin * |A|^2
     
-    :arg t_nl_op: Addional operator in the form f(A, dt, z)
+    :arg t_nl_op: Addional nonlinear operator in the form f(A, dt, z)
     :arg apod: Apodization at the boundaries
     
     :arg varying_operator: Boolean, doeas any operator vary in z
@@ -54,7 +55,7 @@ def split_step(A0, z_array,       # Array for solution points
     A_w = fft(A_t) * dt
     
     ## Apodization (AKA boundary conditions)
-    ## TODO maki it smooth
+    ## TODO make it smooth
     apod_array = ones(n_points, dtype = complex64)
     apod_array[0:n_points/50] = 0
     apod_array[-n_points/50:-1] = 0
@@ -91,8 +92,9 @@ def split_step(A0, z_array,       # Array for solution points
             f.A_t *= exp(-1j * delta_z * nlin * absolute(f.A_t)**2)
             
         ## Additional nonlinear terms as a function t_nl_op(A(t),dt,z)
+        ## This is used for interaction with pumps
         if t_nl_op != None:
-            f.A_t *= exp(-1j * delta_z * t_nl_op(f.A_t, dt, z0+delta_z/2) )
+            f.A_t *= exp(-1j * delta_z * t_nl_op(f.A_t, dt, z0 + delta_z/2) )
 
         ## Apodization
         if apod:
@@ -111,9 +113,9 @@ def split_step(A0, z_array,       # Array for solution points
                 
             ## Extract information from the operators
             ## if it comes in a list, it must be associated
-            ## to a varying potential.
+            ## to a potential that varies with Z.
             if varying_operator:
-                # Verify the lenght are correct
+                # Verify the lenghts are correct
                 if len(t_op) != len(z_array):
                     raise Exception("Varying operator has wrong size") 
                 f.t_exp = exp(-1j * delta_z * t_op[0])
@@ -124,7 +126,7 @@ def split_step(A0, z_array,       # Array for solution points
     f.delta_z = 0
     f.A_t = ones(n_points) + 0.j
     f.A_w = ones(n_points) + 0.j
-    error = tollerance
+    error = tolerance
     
     print("Ready for integration")
     
@@ -151,16 +153,15 @@ def split_step(A0, z_array,       # Array for solution points
         
         ## Dynamical correction
         while dynamic_predictor:
-            A_coarse = f(A_t[:],
-                         A_w[:],
+            A_coarse = f(A_t[:], A_w[:],
                          dz = 2 * delta_z)[0]
-            A_fine = f(*f(A_t[:],
-                          A_w[:], delta_z),dz=delta_z)[0]
+            A_fine = f(*f(A_t[:], A_w[:], delta_z),
+                         dz = delta_z)[0]
             delta = A_fine-A_coarse
             error = sqrt( trapz(delta*delta.conj())/ \
                           trapz(A_fine*A_fine.conj()))
             #print "Error : ",error, " dz :", delta_z
-            if error < 2 * tollerance:
+            if error < 2 * tolerance:
                 done_once = True
                 break  ## Error is less then the tollerance, proceed
             delta_z = delta_z / 2.
@@ -173,9 +174,9 @@ def split_step(A0, z_array,       # Array for solution points
         
         # Dynamic correction to the step
         if (dynamic_predictor or not (done_once or dynamic_predictor) ):
-            if error > tollerance:
+            if error > tolerance:
                 delta_z = delta_z / 1.23
-            if error < 0.5/tollerance:
+            if error < 0.5/tolerance:
                 delta_z = delta_z * 1.23
                 
         if iters % 200 == 0:
@@ -459,9 +460,6 @@ def momentum(y, x, n = 2):
     print("mean %.3e - momentum %dth order = %.3e"%(x0,n,d0))
 
     return d0
-
-def disperd(e, dt, w):
-    return ifft( fft(e)*exp( 1j * w**2 * dt*abs(dt)*(1./pi)**2))
 
 ## Plotting functions
 def plot_fft(A, t = None, w = None):
@@ -849,7 +847,6 @@ def getABC(l0, disp, gamma, p, reprate, deltat):
 
 def nlin_prop():
     """
-
     l0    - Lambda Carrier [m]
     disp  - dispersion [ps/(nm * km)]
     gamma - effective nonlinearity
