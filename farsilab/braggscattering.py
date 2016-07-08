@@ -17,7 +17,7 @@ fwhm = np.sqrt(8*np.log(2))
 def k_bs(dispersion, wl_s, wl_p1, wl_p2, p_eff = 1 * Q_('1/km'), z = Q_(1,'m')):
     """ Bragg scattering Phasematching for a set of pump wavelength and signal
     for a given Dispersion()
-    returns idler wl, k missmatch and conversion efficiency""" 
+    returns idler wl, k mismatch and conversion efficiency""" 
 
     wp1,wp2,ws1 = (2*pi*wl_p1.to('THz', 'optics'),
                   2*pi*wl_p2.to('THz', 'optics'),
