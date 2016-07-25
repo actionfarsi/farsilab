@@ -111,7 +111,7 @@ class Dispersion():
         # convert to beta2
         b2 = - wl**2/(2*pi*c_light)*d
         return Dispersion.from_beta2(2*pi*c_light/wl, b2,
-        wl_range = (np.amin(wl).magnitude, np.amax(wl).magnitude))
+        wl_range = (np.amin(wl).to('nm').magnitude, np.amax(wl).to('nm').magnitude))
     
     def __call__(self, wl):
         return - self.beta2(2*pi*c_light/wl) / wl**2*(2*pi*c_light)
