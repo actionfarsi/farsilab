@@ -1,4 +1,4 @@
-""" Dispersion """
+""" Dispersion module"""
 
 import numpy as np
 from numpy import pi, linspace, sqrt, sin, r_, conj, exp, \
@@ -8,9 +8,16 @@ from scipy.integrate import cumtrapz
 from .units import *
 
 class Dispersion():
-    def __init__(self, wl_range = (1000, 1800)):
-        self.wl = linspace(wl_range[0], wl_range[1], 300) * nm
-        self.n = np.ones_like(self.wl)
+    def __init__(self, wl = None, n = None, wl_range = (1000, 1800)):
+        if wl is not None:
+            self.wl = wl
+        else:
+            self.wl = linspace(wl_range[0], wl_range[1], 300) * nm
+        if n  is not None:
+            if len(n) != len(wl): raise Exception
+            self.n = n
+        else:
+            self.n = np.ones_like(self.wl)
         self.t_unit = Q_('THz')
     
     @property
@@ -115,3 +122,13 @@ class Dispersion():
     
     def __call__(self, wl):
         return - self.beta2(2*pi*c_light/wl) / wl**2*(2*pi*c_light)
+
+
+    def __truediv__(self, other):
+        "Division to easily adjust lengths"
+        return Dispersion(wl = self.wl, n = self.n/other)
+
+    def __mul__(self, other):
+        "Multiply to easily adjust lengths"
+        return Dispersion(wl = self.wl, n = self.n*other)
+        
