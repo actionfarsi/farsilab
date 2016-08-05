@@ -56,3 +56,8 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# Windows crap
+desktop.ini
+.ipynb_checkpoints
+.idea
