@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-TTM Package Viewer
+TTM Package Viewer and converter
 """
 
 import socket
@@ -23,10 +23,24 @@ import ttm_c
 
 #connect to the socket
 address = ('192.168.1.1',10502)
-
+t_bin = 82.3e-12
 
 dec = struct.Struct('<Q')
 header_s = struct.Struct('>8s H H BB 8H')
+
+TTFormat = {'1': 'i64u',
+            '2': 'i64c'}
+#  TTFormat_Unknown          = 0, //!< Data Format Unknown (Should never be used!)
+#  TTFormat_IMode_EXT64_FLAT = 1, //!< I-Mode Continuous Flat - 3 Bit Channel - 1 Bit Slope - 60 Bit Timetag
+#  TTFormat_IMode_EXT64_PACK = 2, //!< I-Mode Continuous Packed - 1 Bit High(1)/Low(0) - High: 31 Bit Timetag - Low: 3 Bit Channel - 1 Bit Slope - 27 Bit Timetag
+# TTFormat_IMode_Cont_RAW29 = 3, //!< I-Mode Continuous - 3 Bit Void - 3 Bit Channel - 8 Bit StartCnt - 1 Bit Slope - 17 Bit Timetag
+#  TTFormat_IMode_Cont_RAW32 = 4, //!< I-Mode Continuous - 3 Bit StartOvrCnt - 3 Bit Channel - 8 Bit StartCnt - 1 Bit Slope - 17 Bit Timetag
+#  TTFormat_IMode_StartStop_RAW29 = 5, //!< I-Mode Start/Stop - 3 Bit Void - 3 Bit Channel - 8 Bit StartCnt - 1 Bit Slope - 17 Bit Timetag
+#  TTFormat_GMode = 6,            //!< G-Mode - 3 Bit Void - 1 Bit Channel - 5 Bit Void - 1 Bit Slope - 22 Bit Timetag
+#  TTFormat_RMode = 7,            //!< R-Mode - 3 Bit Void - 1 Bit Channel - 5 Bit Void - 23 Bit Timetag
+#  TTFormat_MMode = 8             //!< M-Mode - 3 Bit Void - 1 Bit Channel - 5 Bit StartCnt - 23 Bit Timetag
+#} TTMDataFormat_t;
+
 
 ## Defining ctypes structure
 class Timetag_header(ctypes.BigEndianStructure):
@@ -49,13 +63,28 @@ class Timetag_header(ctypes.BigEndianStructure):
         ('data_size', ctypes.c_uint16),
     ]
 
-
 class Timetag_I64(ctypes.LittleEndianStructure):
     _pack_ = 1
     _fields_ = [
         ('time', ctypes.c_uint64, 60),
         ('slope', ctypes.c_uint64, 1),
         ('channel', ctypes.c_uint64, 3),
+    ]
+
+class Timetag_I64c(ctypes.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ('timehigh', ctypes.c_uint32, 27),
+        ('slope', ctypes.c_uint32, 1),
+        ('channel', ctypes.c_uint32, 3),
+        ('highlow', ctypes.c_uint32,1)
+    ]
+
+class Timetag_I64_high(ctypes.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ('timelow', ctypes.c_uint32, 31),
+        ('highlow', ctypes.c_uint8,1)
     ]
 
 class Timetag_packet(ctypes.LittleEndianStructure):
@@ -69,13 +98,57 @@ class Timetag_packet(ctypes.LittleEndianStructure):
 #print(ctypes.sizeof(Timetag_header))
 #print(ctypes.sizeof(Timetag_I64))
 #print(Timetag_I64.time, Timetag_I64.slope, Timetag_I64.channel)
+
+# Pointers
+timetag_header_p = ctypes.POINTER(Timetag_header)
 timetag_packet_p = ctypes.POINTER(Timetag_packet)
 timetag_I64_p = ctypes.POINTER(Timetag_I64)
+timetag_I64c_p = ctypes.POINTER(Timetag_I64c)
+
+print(ctypes.sizeof(Timetag_I64c))
+
+assert ctypes.sizeof(Timetag_header) == 30
+assert ctypes.sizeof(Timetag_I64) == 8
 
 packet_queue = queue.PriorityQueue(maxsize = 1000)
 
+compressed_t0 = 0
 
-t_bin = 82.3e-12
+def decodePacket(bin_data,  data_size = None, packet_mode = 'i64u', track_t0 = False):
+    # Works only for i64bit unpacked mode
+    print(len(bin_data))
+    global compressed_t0
+    #assert (packet_mode == 'i64u')
+    if packet_mode == 'i64u':
+        data_size = len(bin_data)//ctypes.sizeof(Timetag_I64)
+
+        t = ctypes.cast(bin_data, timetag_I64_p)
+
+        time = np.fromiter((i.time for i in t), np.int64, data_size)
+        channel = np.fromiter((i.channel for i in t), np.int8, data_size)
+
+    if packet_mode == 'i64c':
+        data_size = len(bin_data)//ctypes.sizeof(Timetag_I64c)
+
+        t = ctypes.cast(bin_data, timetag_I64c_p)
+        #if t[0].highlow == 0:
+        #    ctypes.cast(bin_data, timetag_I64c_p)  
+        highlow = np.fromiter((i.highlow for i in t ), np.uint64, data_size)
+        time =   np.fromiter((i.timehigh for i in t ), np.uint64, data_size)+(cumsum(highlow))*2**27
+        channel = np.fromiter((i.channel for i in t ), np.uint8, data_size)
+        time    = time[highlow == 0]
+        channel = channel[highlow == 0]
+
+        if track_t0:
+            time = time + compressed_t0
+            compressed_t0 += sum(highlow)*2**27
+        else:
+            track_t0 = 0
+    return(time, channel)
+
+
+
+## Packet analysis (the single packet processing is implemented in c)
 
 class PacketCounter():
     def __init__(self):
@@ -132,16 +205,30 @@ class Histogrammer():
         y = np.fromiter((self.histogram_d[xx] for xx in x), dtype= int64, count = len(x))
         return x,y
 
-def decodePacket(data_size, data, packet_mode = 'i64u'):
-    # Works only for i64bit unpacked mode
-    assert (packet_mode == 'i64u')
-    time_stamp = np.fromiter((data[i].time for i in range(data_size)),
-                    dtype=np.uint64, count = data_size)
-    ch = np.fromiter((data[i].channel for i in range(data_size)),
-                    dtype=np.uint8, count = data_size)
+def TimeRebase():
+	""" Convert all the timetags from absolute to relative to a specific channel """
+	def init(self, start):
+		""" Start channel is the rebase """
+		self.start = start
+		self.time = 0
+		self.t = []
+		self.ch = []
+
+	def processPacket(self, data_size, data_packet, packet_mode = 'i64u'):
+		t, ch = decodePacket(data_packet, data_size, packet_mode)  # done in python
+		new_t = []
+		new_ch = []
+		for i in range(len(ch)):
+			if ch[i] == self.start:
+				self.time = t[i]
+			else:
+				new_t.append(t[i]-self.time)
+				new_ch.append(ch[i])
+		self.t.append(np.array(new_t, dtype = np.int64))
+		self.ch.append(np.array(new_ch, dtype = np.int8))
+	
 
 
-    return (time_stamp, ch+1)
 
 def decodeNetPacket(m):
     ## Packet is header (decoded by 'header' struct)
@@ -164,10 +251,8 @@ def decodeNetPacket(m):
     header = {'data_size': data_size,
               'mode': 'i64u', ### TODO
               'packet_n': packet_n,}
-
     return header
         
-
 
 def processPackage():
     #global data_buffer
@@ -297,15 +382,7 @@ class QtPacketProcessing(QThread):
             pc.processPacket(data_size,  m[30:(data_size+4)*8], header['mode'])
             #hh.processPacket(data_size,  m[30:(data_size+4)*8], header['mode'])
 
-        
-
-#s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-#s.bind(address)
-
-
-
-
-
+ 
 ######## GUI ######
 # Window + chart
 
