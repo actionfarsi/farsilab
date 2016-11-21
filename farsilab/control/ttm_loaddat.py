@@ -40,7 +40,7 @@ def rebase(time, channel, start):
 
 span = lambda t,x1,x2 : np.logical_and(t>=x1, t<=x2)
 
-def process_file(filename = 'TimeTagsOut[8].dat', ranges = (15000, 16100)):
+def process_file(filename = 'TimeTagsOut[8].dat', ranges = (14000, 16100)):
     f= open(filename, 'rb')
     size = os.fstat(f.fileno()).st_size -30
     m1 = f.read(30)  ## FIrst 30 byte are the header
@@ -79,28 +79,30 @@ def process_file(filename = 'TimeTagsOut[8].dat', ranges = (15000, 16100)):
     f.close()
 
 
-def speed_test_c(filename, n = 100000):
+def speed_test_c(filename, n = 1000000):
     f= open(filename, 'rb')
     size = os.fstat(f.fileno()).st_size -30
     m1 = f.read(30)  ## FIrst 30 byte are the header
 
     t,c = ttm.ttm_c.decodePacket(f.read(n*4), data_size = n,
                      packet_mode = 'i64c', track_t0 = False)
-    t,dt,c = ttm.ttm_c.rebase(t, c, 5)
+    t,dt,ch = ttm.ttm_c.rebase(t, c, 5)
+    return t,dt,ch
 
-def speed_test_c(filename, n = 100000):
+def speed_test_py(filename, n = 1000000):
     f= open(filename, 'rb')
     size = os.fstat(f.fileno()).st_size -30
     m1 = f.read(30)  ## FIrst 30 byte are the header
 
     t,c = ttm.decodePacket(f.read(n*4), data_size = n,
                      packet_mode = 'i64c', track_t0 = False)
-    t,dt,c = rebase(t, c, 5)
+    t,dt,ch = rebase(t, c, 5)
+    return t,dt,ch
 
 #process_file()
 
-data = loadmat('TimeTagsOut[4]_r[15000,16100]', squeeze_me = True)
-t, dt, ch = data['t'], data['dt'], data['ch']
+#data = loadmat('TimeTagsOut[4]_r[15000,16100]', squeeze_me = True)
+#t, dt, ch = data['t'], data['dt'], data['ch']
 
 def my_hist(diffs):
     histogram_d = {}
@@ -115,12 +117,12 @@ def coinc(time, start, shift = 10000):
     dt = np.diff(time)-np.where(start[1:], shift,0)+shift
     return dt[np.diff(start)]
 
-cc = coinc(t, ch == 1)
-print(t, dt,ch)
+#cc = coinc(t, ch == 1)
+#print(t, dt,ch)
 #h = my_hist(dt[ch==1])
 #h = my_hist(cc)
 #pylab.plot(h[0], h[1])
-pylab.hist(cc, range=(200,400), bins=50)   
+#pylab.hist(cc, range=(200,400), bins=50)   
 
 
 
@@ -135,7 +137,7 @@ pylab.hist(cc, range=(200,400), bins=50)
 #pylab.hist(dt[ch==1], bins=1000)
 #pylab.hist(cc, bins=1000, range=(-100,1000))
 #pylab.hist(dt[channel==2], bins=1000, range=(15000, 17000))
-pylab.show()
+#pylab.show()
 
 
 

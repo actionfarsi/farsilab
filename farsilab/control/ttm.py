@@ -116,7 +116,6 @@ compressed_t0 = 0
 
 def decodePacket(bin_data,  data_size = None, packet_mode = 'i64u', track_t0 = False):
     # Works only for i64bit unpacked mode
-    print(len(bin_data))
     global compressed_t0
     #assert (packet_mode == 'i64u')
     if packet_mode == 'i64u':

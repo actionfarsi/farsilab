@@ -41,20 +41,20 @@ def DecodeNetPacket(char* data_p):
 ## Keep track of 
 cdef int compressed_t0 = 0
 
-def decodePacket(char* data_buffer, uint64 data_size = None,
+def decodePacket(char* data_buffer, uint64 data_size = 0,
                  packet_mode = 'i64u', track_t0 = False):
     cdef Timetag_I64*  data_64
     cdef Timetag_I64c* data_64c
 
-    cdef np.array[np.uint64_t, ndim = 1] t = np.zeros([data_size, 1], dtype = np.uint64)
-    cdef np.array[np.uint64_t, ndim = 1] ch = np.zeros([data_size, 1], dtype = np.uint8)
-    cdef np.array[np.uint64_t, ndim = 1] highlow = np.zeros([data_size, 1], dtype = np.uint8)
+    cdef np.ndarray[np.uint64_t, ndim = 1] t = np.zeros(data_size, dtype = np.uint64)
+    cdef np.ndarray[np.uint8_t, ndim = 1] ch = np.zeros(data_size, dtype = np.uint8)
+    cdef np.ndarray[np.uint8_t, ndim = 1] highlow = np.zeros(data_size, dtype = np.uint8)
 
     if not track_t0:
         compressed_t0 = 0
 
     if packet_mode == 'i64':
-        data_64 = <Timetag_I64c*>data_buffer
+        data_64 = <Timetag_I64*>data_buffer
         for i in range(data_size):
             t[i] = data_64[i].time
             ch[i] = data_64[i].ch
@@ -67,7 +67,7 @@ def decodePacket(char* data_buffer, uint64 data_size = None,
             if highlow[i] == 1:
                 compressed_t0 += 1
             t[i] = data_64c[i].time + compressed_t0*2**27
-            ch[i] = data_64c[i].ch
+            ch[i] = data_64c[i].channel
 
 
         t  = t[highlow == 0]
@@ -160,26 +160,27 @@ def coincidenceCounter(int data_size, char* data_p,
     
     return coinc_tags[:coinc_tags_counter,:], last_tt_c, trigger_armed
 
-def rebase(np.array[np.uint64_t, ndim = 1] time,
-           np.array[np.uint64_t, ndim = 1] channel,
+def rebase(np.ndarray[np.uint64_t, ndim = 1] time,
+           np.ndarray[np.uint8_t, ndim = 1] channel,
            int start_channel):
 
     size = len(time)
     new_size = len(time[channel!= start_channel])
 
-    cdef np.array[np.uint64_t, ndim = 1] t = np.zeros([new_size, 1], dtype = np.uint64)
-    cdef np.array[np.uint64_t, ndim = 1] dt = np.zeros([new_size, 1], dtype = np.uint64)
-    cdef np.array[np.uint64_t, ndim = 1] ch = np.zeros([new_size, 1], dtype = np.uint8)
+    cdef np.ndarray[np.uint64_t, ndim = 1] t = np.zeros(new_size, dtype = np.uint64)
+    cdef np.ndarray[np.uint64_t, ndim = 1] dt = np.zeros(new_size, dtype = np.uint64)
+    cdef np.ndarray[np.uint8_t, ndim = 1] ch = np.zeros(new_size, dtype = np.uint8)
     
     cdef int j = 0
     cdef uint64 t0 = 0
     
     for i in range(size):
-        if channel[i] == start_channel
+        if channel[i] == start_channel:
             t0 = time[i]
-        t[j] = time[i]
-        dt[j] = time[i]-t0
-        ch[j] = channel[i]
-        j += 1
+        else:
+            t[j] = time[i]
+            dt[j] = time[i]-t0
+            ch[j] = channel[i]
+            j += 1
 
     return t, dt, ch
