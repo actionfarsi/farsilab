@@ -2,7 +2,8 @@
 
 import numpy as np
 cimport numpy as np
-
+    
+ctypedef long long int64
 ctypedef unsigned long long uint64
 ctypedef unsigned long      uint32
 ctypedef unsigned short     uint16
@@ -162,7 +163,8 @@ def coincidenceCounter(int data_size, char* data_p,
 
 def rebase(np.ndarray[np.uint64_t, ndim = 1] time,
            np.ndarray[np.uint8_t, ndim = 1] channel,
-           int start_channel):
+           int start_channel,
+           int shift):
 
     size = len(time)
     new_size = len(time[channel!= start_channel])
@@ -179,8 +181,43 @@ def rebase(np.ndarray[np.uint64_t, ndim = 1] time,
             t0 = time[i]
         else:
             t[j] = time[i]
-            dt[j] = time[i]-t0
+            dt[j] = time[i]-t0-shift
             ch[j] = channel[i]
             j += 1
 
     return t, dt, ch
+
+
+def coincidence(np.ndarray[np.uint64_t, ndim=1] time,
+                np.ndarray[np.uint8_t, ndim=1]  channel,
+                int start_ch,
+                int stop_ch,
+                unordered):
+    """ Process an array list of timetags"""
+    cdef int size = len(time)
+
+    cdef int64 last_start = -1, last_stop = 0
+    cdef np.ndarray[np.int64_t, ndim=1] dt = np.zeros(size, dtype=np.int64)
+    
+    cdef int j = 0
+
+    for d in range(size):
+        ## If is a start event, arm or rearm the trigger
+        if channel[d] == start_ch:
+            if unordered == True and not trig_armed and j!=0:
+                ## match with the previous stop event if it's happened closer
+                if -(last_stop-time[d])<dt[j-1]: # see the signs 
+                    dt[j-1] = (last_stop-time[d])
+                    print('hi')
+            last_start = time[d]
+            trig_armed = True
+                
+        ## If it is a stop event
+        elif channel[d] == stop_ch:
+            if trig_armed:
+                dt[j] = (time[d] - last_start)
+                j += 1
+            last_stop = time[d]
+            trig_armed = False
+    
+    return dt[:j]

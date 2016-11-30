@@ -54,7 +54,7 @@ def process_file(filename = 'TimeTagsOut[8].dat', ranges = (14000, 16100)):
     #      hh.data_format % 2**4)
     
     #    ttm.decodePacket(f.read(4),packet_mode = 'i64c')
-    n =  size
+    n = size
     block_size = 3000000*4
     #print(size/block_size)
     
@@ -64,7 +64,7 @@ def process_file(filename = 'TimeTagsOut[8].dat', ranges = (14000, 16100)):
         print("{:.1f}%".format(100*i / (size/block_size)),)
         t,c = ttm.ttm_c.decodePacket(f.read(l), data_size = l//4, packet_mode = 'i64c', track_t0 = False)
         #print(t, c)
-        t,dt,c = ttm.ttm_c.rebase(t, c, 5)
+        t,dt,c = ttm.ttm_c.rebase(t, c, 5,0)
         s = span(dt, ranges[0], ranges[1])
         data.append((t[s],dt[s],c[s]))
     
