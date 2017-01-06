@@ -86,8 +86,9 @@ class Dispersion():
         else:              return beta4_f(omega)
 
 
-    def from_coef(w0, b2 = Q_(0, "ps**2/m"), b3 = Q_(0, "ps**3/m"), b4 = Q_(0,"ps**4/m")):
-        d = Dispersion()
+    def from_coef(w0, b2 = Q_(0, "ps**2/m"), b3 = Q_(0, "ps**3/m"), b4 = Q_(0,"ps**4/m"),
+                      wl_range = (1200, 1600)):
+        d = Dispersion(wl_range = wl_range)
         k = 1/2. * b2 * (d.w - w0)**2 + 1/6. *b3 * (d.w - w0)**3 + 1/24. *b4 * (d.w - w0)**4
         d.n = k*d.wl/(2*pi)
         return d
