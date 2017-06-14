@@ -1,16 +1,13 @@
 """ Bragg Scattering simulations """
 
 import numpy as np
-from numpy import pi, linspace, sqrt, sin, r_, conj, exp
+from numpy import pi, linspace, sqrt, sin, r_, c_, conj, exp, array, linspace, zeros
 from numpy.fft import fftfreq, fft, fftshift, ifft
 
 from scipy.integrate import odeint, complex_ode
 import lmfit
 
 from itertools import combinations, permutations
-
-from accelerate import mkl
-from numba import jit
 
 from matplotlib import pylab as pl
 
@@ -31,22 +28,24 @@ def k_bs(p1_wl, p2_wl, s_wl, dispersion,
     returns idler wl, k mismatch and conversion efficiency""" 
 
     k_unit = Q_('1/m')
-    wp1,wp2,ws1 = (2*pi*p1_wl.to('THz', 'optics'),
-                   2*pi*p2_wl.to('THz', 'optics'),
-                   2*pi* s_wl.to('THz', 'optics'))
+    wp1,wp2,ws1 = (2*pi*Q_('c')/p1_wl,
+                   2*pi*Q_('c')/p2_wl,
+                   2*pi*Q_('c')/ s_wl)
             
     ws2 = wp1-wp2+ws1
-    ls2 = (ws2/(2*pi)).to('nm', 'optics')
+    ls2 = (2*pi*Q_('c')/ws2)
     
     beta = dispersion.beta
+    dbeta = (beta(wp1)-beta(wp2)+beta(ws1)-beta(ws2))
+    kappa = dbeta/2 # dipsersive wavevector 
     
-    kappa = (beta(wp1)-beta(wp2)+beta(ws1)-beta(ws2))
+    r = (2*p_eff)
+    kappa_bs = sqrt((kappa)**2 + r**2)
 
-    r = (2* p_eff)
-    k_bs = sqrt(kappa**2 + r**2)
-    gain = (r.to(k_unit).magnitude**2/(kappa.to(k_unit).magnitude**2 + r.to(k_unit).magnitude**2)) \
-            * sin(k_bs*z)**2
-    return ls2, kappa, gain.magnitude
+    gain =     (r.to(k_unit).magnitude**2 \
+          /((kappa.to(k_unit).magnitude)**2 + r.to(k_unit).magnitude**2)) \
+          * sin(kappa_bs*z)**2
+    return ls2, dbeta, gain.magnitude
 
 def eta_vs_p_f(x, k, p_eff, a ):
     r = 2*x/p_eff
@@ -175,12 +174,12 @@ def BS_evolution(t, A,
 def BS2_evolution(t, A, length,
                  dispersion, gamma, p_wl, s_wl,
                  n_steps = 200):
-    """ Bragg using two fields """
+    """ Bragg using two fields NOT implemented"""
 
     ## Calculate parameters
-    i_wl, dk, gain = k_bs(dispersion, s_wl, p1_wl, p2_wl, z = length, p_eff = gamma)
+    i_wl, dk, gain = k_bs(p1_wl, p2_wl, s_wl,  dispersion, z = length, p_eff = gamma)
     print('Idler wl = {:.2f}'.format(i_wl.to('nm')))
-    print('expected gain = {:.2f}'.format(gain.magnitude))
+    print('expected gain = {:.2f}'.format(gain))
     print('dk = {:.3e}'.format( (dk*length).magnitude))
 
     sim_wl = [s_wl, i_wl, p1_wl, p2_wl]
@@ -361,7 +360,7 @@ def generatePhasematching(p_w, s_w, dw, dispersion, k_unit = Q_('1/m')):
     return lambda p1,p2,s1,s2: ( beta((p1*dw+p_w) ) - beta((p2*dw+p_w) ) \
              +beta((s1*dw+s_w) ) - beta((s2*dw+s_w) )).to(k_unit).magnitude
 
-@jit
+
 def interactionMatrixZ(kappa_dict, z, N):
     """ Interaction matrix with z-dependency due to phasematching terms
     It is obtained adding up all the possible combinations
@@ -372,9 +371,20 @@ def interactionMatrixZ(kappa_dict, z, N):
         y_p += 1j*exp(1j*kappa*z)*gamma
     return y_p
 
-def BS_mc_evolution(wl_p1, wl_p2, wl_s, dispersion,
-    length = 100 * Q_('m'), a_p = r_[1,1] * sqrt(Q_('1/m')),
-    n_order = 63, n_steps = 100):
+def BS_mc_evolution( p0, gamma, length, dispersion,
+                     s_wl, p1_wl, p2_wl,
+                     s_0 = np.array([0,1,0], dtype=np.complex64),
+                     a_p = r_[1,1],
+                    
+                     ## Losses terms (for completeness)
+                     alpha_l  = Q_('0 1/m'), # Loss
+                     alpha_2p = Q_('0 1/(W m)'), # NL loss
+                     s_fca    = Q_('0 m**2'), t_fca = Q_(1, 'as'), # TPA
+                     w0_wl = 1550 * nm,    ## FCA defined at 1550 nn
+                     
+                     vary_pump = False,
+                     grid_size = 100):
+    
     """ Bragg Scattering MultiChannel Simulation 
 
     requires Units and Dispersion
@@ -383,50 +393,89 @@ def BS_mc_evolution(wl_p1, wl_p2, wl_s, dispersion,
     s_wl: is the input signal wavelength.
     dispersion: is the dispersion (Dispersion)
 
-    a_p: are the pump fields amplitudes
+    s_0: input fields. Size of the array determines the channels
+    a_p: are the pump fields amplitudes normalized to p0
+    
     """
 
+    # Simulation units
+    u_l = Q_('mm')
+    u_p = Q_('W')
 
-     # The only dimension is the lenght scale, so we enforce a z-scale
-    k_unit = Q_('1/m')
+    # Obtain angular frequency
+    p_w = 2*pi*c_light*(1/p1_wl + 1/p2_wl)/2
+    s_w = 2*pi*c_light/s_wl
+    dw = (1/p1_wl - 1/p2_wl)*2*pi*c_light  # Channel separation
 
-    ## Compute simulation parameters ###
-    z = length.to(1/k_unit).magnitude
-    dz = z/n_steps
-
-    # signal is centered
-    n_ch = n_order*2+1
-    a_s = np.zeros(n_ch)
-    a_s[n_order] = 1
-                                  
-    # pumps are in units of effective power
-    a_p = a_p.to(sqrt(k_unit)).magnitude
-
-    # convert to angular frequency
-    p_w = 2*pi*c_light*(1/wl_p1 + 1/wl_p2)/2
-    s_w = 2*pi*c_light/wl_s
-    dw = (1/wl_p1 - 1/wl_p2)*2*pi*c_light
-
+    z = length.to(u_l).magnitude
+    dz = z/grid_size
+    
+    # signal is centered at len(s_0)/2
+    n_ch = len(s_0)
+    n_order = np.floor(n_ch / 2)
+    a_s = s_0
+    
     # Generate a dimensionless phasematching function.
-    phasematching = generatePhasematching(p_w, s_w, dw, dispersion, k_unit = k_unit)
+    phasematching = generatePhasematching(p_w, s_w, dw,
+                                          dispersion, k_unit = 1/u_l)
+    
+    # Effective nonlinearity
+    nl_eff = gamma * p0
+    a_p = a_p * sqrt(nl_eff.to(1/u_l).magnitude)
+    
+    p_out = np.zeros((gridsize + 1, len(a_p)), dtype= np.complex64)
+    
+    if varying_pump:
+        ## Simulate pumps
+        ode_pump = complex_ode(f)
+        ode.set_initial_value(a_p)
+        i = 1
+        for zi in np.arange(dz, z, dz):
+            output [i,:] = ode.integrate(zi)
+            i += 1
+            if not ode.successful():
+                raise Exception()
     
     # Use it to generate the coupling matrix coefficients
-    k_dict = generateCoefficients(A_p = a_p, phasematching=phasematching, 
+    k_dict = generateCoefficients(a_p = a_p, phasematching = phasematching, 
                                   n_order= n_order, kappa_limit = 1e3/dz)
+    
+    
+    
+    
+    # Losses
+    #a2p_eff = alpha_2p * p0
+    
+    #h_nup = Q_('h*c')/w0_wl
+    #fca = [alpha_2p*t_fca/(2*h_nup)*s_fca*(wl/w0_wl)**2 * p0**2 \
+    #                      for wl in [s_wl, i_wl, p1_wl, p2_wl]]
+    
+    #fca = zeros(4) * Q_('1/m') # FCA formula may be wrong
+    
+    ## There is a BUG in scipy for functions accepting external arguments in complex_ode.
+    ## I just make them global and unitless
+    #args =          ( dk.to(1/u_l).magnitude,
+    #              nl_eff.to(1/u_l).magnitude,
+    #             alpha_l.to(1/u_l).magnitude,
+    #             a2p_eff.to(1/u_l).magnitude,
+    #              r_[ [f.to(1/u_l).magnitude for f in fca] ] )
 
+    
+    ## Compute simulation parameters ###
+    print(k_dict)
 
     # Define a f(z, x) = dx/dz
-    f = lambda z,x: np.dot(x, interactionMatrixZ(k_dict, z, n_ch))
+    f = lambda z, x: np.dot(x, interactionMatrixZ(k_dict, z, n_ch))
     
     # Build the output array
-    output = np.zeros((n_steps, n_ch), dtype= np.complex64)
-    output[1,:] = a_s
+    output = np.zeros((grid_size+1, n_ch), dtype= np.complex64)
+    output[0,:] = a_s
 
     # Finally, simulate
     ode = complex_ode(f)
     ode.set_initial_value(a_s)
     i = 1
-    for zi in np.arange(dz,z,dz):
+    for zi in np.arange(dz, z, dz):
         output [i,:] = ode.integrate(zi)
         i += 1
         if not ode.successful():
@@ -448,13 +497,14 @@ def plot_mc_phasematching(p1_wl, p2_wl, s_wl, d,
     s_w = 2*pi*c_light*(1/s_wl)
     dw =  2*pi*c_light*(1/p1_wl - 1/p2_wl)
     
-    s_r = 2*pi*c_light/(np.linspace(-n_order-1, n_order+2,1000) * dw + s_w)
+    s_r = 2*pi*c_light/(np.linspace(-n_order-1, n_order+2, 1000) * dw + s_w)
     s = 2*pi*c_light/(np.arange(-n_order, n_order+1,1) * dw + s_w)
 
-    i_wl, dk, gain = k_bs(p1_wl, p2_wl, s_r, d,  p_eff= gamma, z =length)
-    ax.plot(s_r, gain )
+    i_wl, dk, gain = k_bs(p1_wl, p2_wl, s_r, d, p_eff = gamma, z = length)
+    ax.plot(s_r, gain)
     for w in s:
         ax.axvline(w.magnitude, ls='--', c = 'green', lw = 2)
+
 
 
 ## Plot the result
