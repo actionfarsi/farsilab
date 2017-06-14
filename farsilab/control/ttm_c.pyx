@@ -1,8 +1,20 @@
+<<<<<<< HEAD
 import numpy as np
 cimport numpy as np
 
 ctypedef unsigned long long uint64
 ctypedef unsigned short   uint16
+=======
+## Cython fast C++ routines
+
+import numpy as np
+cimport numpy as np
+    
+ctypedef long long int64
+ctypedef unsigned long long uint64
+ctypedef unsigned long      uint32
+ctypedef unsigned short     uint16
+>>>>>>> ttm
 
 cdef extern from "ttm_structs.h":
     struct Timetag_I64:
@@ -10,12 +22,30 @@ cdef extern from "ttm_structs.h":
         uint64 slope
         uint64 channel
 
+<<<<<<< HEAD
     struct TTMDataHeader_t:
         uint16  TTMPacketMagicA
         uint16  TTMPacketMagicB
         uint16 PacketCnt
         uint16 DataSize
 
+=======
+    struct Timetag_I64c:
+        uint32 time
+        uint32 slope
+        uint32 channel
+        uint32 highlow
+
+    struct TTMDataHeader_t:
+        uint16 TTMPacketMagicA
+        uint16 TTMPacketMagicB
+        uint16 PacketCnt
+        uint16 DataSize
+
+
+
+
+>>>>>>> ttm
 def DecodeNetPacket(char* data_p):
     cdef TTMDataHeader_t* data
     data = <TTMDataHeader_t*>data_p
@@ -26,6 +56,47 @@ def DecodeNetPacket(char* data_p):
               'packet_n': data.PacketCnt}
     return  header
 
+<<<<<<< HEAD
+=======
+## Keep track of 
+cdef int compressed_t0 = 0
+
+def decodePacket(char* data_buffer, uint64 data_size = 0,
+                 packet_mode = 'i64u', track_t0 = False):
+    cdef Timetag_I64*  data_64
+    cdef Timetag_I64c* data_64c
+
+    cdef np.ndarray[np.uint64_t, ndim = 1] t = np.zeros(data_size, dtype = np.uint64)
+    cdef np.ndarray[np.uint8_t, ndim = 1] ch = np.zeros(data_size, dtype = np.uint8)
+    cdef np.ndarray[np.uint8_t, ndim = 1] highlow = np.zeros(data_size, dtype = np.uint8)
+
+    if not track_t0:
+        compressed_t0 = 0
+
+    if packet_mode == 'i64':
+        data_64 = <Timetag_I64*>data_buffer
+        for i in range(data_size):
+            t[i] = data_64[i].time
+            ch[i] = data_64[i].ch
+
+    if packet_mode == 'i64c':
+        data_64c = <Timetag_I64c*>data_buffer
+
+        for i in range(data_size):
+            highlow[i] = data_64c[i].highlow
+            if highlow[i] == 1:
+                compressed_t0 += 1
+            t[i] = data_64c[i].time + compressed_t0*2**27
+            ch[i] = data_64c[i].channel
+
+
+        t  = t[highlow == 0]
+        ch = ch[highlow == 0]
+
+    return t,ch
+
+
+>>>>>>> ttm
 def eventCounter(int data_size, char* data_p, packet_mode = 'i64u'):
     """ Process a packet and count events
         returns how many events per each channel, 
@@ -109,3 +180,67 @@ def coincidenceCounter(int data_size, char* data_p,
         last_tt_c[data[d].channel] = data[d].time
     
     return coinc_tags[:coinc_tags_counter,:], last_tt_c, trigger_armed
+<<<<<<< HEAD
+=======
+
+def rebase(np.ndarray[np.uint64_t, ndim = 1] time,
+           np.ndarray[np.uint8_t, ndim = 1] channel,
+           int start_channel,
+           int shift):
+
+    size = len(time)
+    new_size = len(time[channel!= start_channel])
+
+    cdef np.ndarray[np.uint64_t, ndim = 1] t = np.zeros(new_size, dtype = np.uint64)
+    cdef np.ndarray[np.uint64_t, ndim = 1] dt = np.zeros(new_size, dtype = np.uint64)
+    cdef np.ndarray[np.uint8_t, ndim = 1] ch = np.zeros(new_size, dtype = np.uint8)
+    
+    cdef int j = 0
+    cdef uint64 t0 = 0
+    
+    for i in range(size):
+        if channel[i] == start_channel:
+            t0 = time[i]
+        else:
+            t[j] = time[i]
+            dt[j] = time[i]-t0-shift
+            ch[j] = channel[i]
+            j += 1
+
+    return t, dt, ch
+
+
+def coincidence(np.ndarray[np.uint64_t, ndim=1] time,
+                np.ndarray[np.uint8_t, ndim=1]  channel,
+                int start_ch,
+                int stop_ch,
+                unordered):
+    """ Process an array list of timetags"""
+    cdef int size = len(time)
+
+    cdef int64 last_start = -1, last_stop = 0
+    cdef np.ndarray[np.int64_t, ndim=1] dt = np.zeros(size, dtype=np.int64)
+    
+    cdef int j = 0
+
+    for d in range(size):
+        ## If is a start event, arm or rearm the trigger
+        if channel[d] == start_ch:
+            if unordered == True and not trig_armed and j!=0:
+                ## match with the previous stop event if it's happened closer
+                if -(last_stop-time[d])<dt[j-1]: # see the signs 
+                    dt[j-1] = (last_stop-time[d])
+                    print('hi')
+            last_start = time[d]
+            trig_armed = True
+                
+        ## If it is a stop event
+        elif channel[d] == stop_ch:
+            if trig_armed:
+                dt[j] = (time[d] - last_start)
+                j += 1
+            last_stop = time[d]
+            trig_armed = False
+    
+    return dt[:j]
+>>>>>>> ttm

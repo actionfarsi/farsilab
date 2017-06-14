@@ -15,6 +15,18 @@ struct Timetag_I64
     uint64_t channel :  3;  //!< Channel (0..7 +1 -> Stop1..Stop8) - Bit 61..63
    };
 
+<<<<<<< HEAD
+=======
+struct Timetag_I64c
+   {
+    uint32_t time    : 27;  //!< Timestamp                         - Bit  0..59
+    uint32_t slope   :  1;  //!< Slope (1..Rising/0..Falling)      - Bit   60
+    uint32_t channel :  3;  //!< Channel (0..7 +1 -> Stop1..Stop8) - Bit 61..63
+    uint32_t highlow :  1;  //!< Channel (0..7 +1 -> Stop1..Stop8) - Bit 61..63
+   };
+
+
+>>>>>>> ttm
 typedef struct TTMDataHeader_t
  {
   uint16_t  TTMPacketMagicA;  //!< Always TTMCookieA for Packet Type Identification
