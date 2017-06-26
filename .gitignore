@@ -63,3 +63,11 @@ desktop.ini
 .idea
 
 *.ini
+
+farsilab/control/devices/\.DS_Store
+
+farsilab/control/\.DS_Store
+
+farsilab/\.DS_Store
+
+\.DS_Store
