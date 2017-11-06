@@ -90,6 +90,9 @@ def BS_evolution(t, A,
                  dispersion,
                  gamma, length,
                  n_steps = 200):
+    """ Bragg using 4 fields """
+
+
     ## Calculate parameters
     i_wl, dk, gain = k_bs(dispersion, s_wl, p1_wl, p2_wl, z = length, p_eff = gamma)
     print('Idler wl = {:.2f}'.format(i_wl.to('nm')))
@@ -123,8 +126,8 @@ def BS_evolution(t, A,
     gamma = gamma.to('1/m').magnitude
     dk = dk.to('1/m').magnitude
 
-    ## Define the functions
-    def f_w(z, A,w): # Dispersion (f_w)
+    ## Define the physical functions
+    def f_disp(z, A_w): # Dispersion (f_w)
         return np.c_[ -1.j * (beta1[0]*w + beta2[0]/2* w**2),
                       -1.j * (beta1[1]*w + beta2[1]/2* w**2),
                       -1.j * (beta1[2]*w + beta2[2]/2* w**2),
@@ -145,8 +148,9 @@ def BS_evolution(t, A,
                         2*gamma*1j*(0.5*abs(p1)**2+abs(p2)**2)*p1,
                         2*gamma*1j*(abs(p1)**2+0.5*abs(p2)**2)*p2]
 
-    f_t = f_bs
-    f_t = lambda z,A: f_bs(z,A) + f_xph(z,A)
+    ## Time and frequency operators
+    f_w = lambda z,A_w: f_disp(z, A_w)
+    f_t = lambda z,A_t: f_bs(z, A_t) + f_xph(z, A_t)
 
     ## Run the simulation Splitstep with a f_w and a f_t
     sim_grid = linspace(0, length, n_steps)
@@ -154,8 +158,9 @@ def BS_evolution(t, A,
         h = z-z0
         if z in sim_grid:
             sol.append(1*A)
+
         ## Splitstep 1
-        A = ifft(fft(A,axis = 0)*exp( h/2 * f_w(z, A, w)), axis = 0)
+        A = ifft(fft(A,axis = 0) * exp( h/2 * f_w(z, A)), axis = 0)
 
         ## runge kutta
         k1 = f_t(z, A)
@@ -165,7 +170,7 @@ def BS_evolution(t, A,
         A += h/6 * (k1+2*k2+2*k3+k4)
 
         ## Splitstep 2
-        A = ifft(fft(A,axis = 0)*exp( h/2 * f_w(z, A, w)), axis = 0)
+        A = ifft(fft(A,axis = 0) * exp( h/2 * f_w(z, A)), axis = 0)
         z0 = z
 
     return(t * ps,
@@ -174,7 +179,8 @@ def BS_evolution(t, A,
 def BS2_evolution(t, A, length,
                  dispersion, gamma, p_wl, s_wl,
                  n_steps = 200):
-    """ Bragg using two fields NOT implemented"""
+    """ Bragg using two fields, one for pumps, one for signal/idler
+    NOT implemented """
 
     ## Calculate parameters
     i_wl, dk, gain = k_bs(p1_wl, p2_wl, s_wl,  dispersion, z = length, p_eff = gamma)
@@ -209,8 +215,8 @@ def BS2_evolution(t, A, length,
     gamma = gamma.to('1/m').magnitude
     dk = dk.to('1/m').magnitude
 
-    ## 
-    def f_w(z, A,w):
+    ## Physical evolution (four fields)
+    def f_disp(z, A,w):
         return np.c_[ -1.j * (beta1[0]*w + beta2[0]/2* w**2),
                       -1.j * (beta1[1]*w + beta2[1]/2* w**2),
                       -1.j * (beta1[2]*w + beta2[2]/2* w**2),
@@ -231,26 +237,27 @@ def BS2_evolution(t, A, length,
                         2*gamma*1j*(0.5*abs(p1)**2+abs(p2)**2)*p1,
                         2*gamma*1j*(abs(p1)**2+0.5*abs(p2)**2)*p2]
 
-    f_t = f_bs
-    f_t = lambda z,A: f_bs(z,A) + f_xph(z,A)
+    ## Time and frequency operators
+    f_w = lambda z,A, w: f_disp(z, A, w)
+    f_t = lambda z,A: f_bs(z, A) + f_xph(z, A)
 
     ## Run the simuluation
     sim_grid = linspace(0, length, n_steps)
     for i,z in enumerate(sim_grid):
-        h = z-z0
+        h = z-z0 ## Step
         if z in sim_grid:
             sol.append(1*A)
-        ## Splitstep 1
+        ## Splitstep 1 - Freq. operator is linear
         A = ifft(fft(A,axis = 0)*exp( h/2 * f_w(z, A, w)), axis = 0)
 
-        ## runge kutta
+        ## Runge-kutta for the nonlinear time operator
         k1 = f_t(z, A)
         k2 = f_t(z + h/2, A+h/2*k1)
         k3 = f_t(z + h/2, A+h/2*k2)
         k4 = f_t(z + h,   A+h*k3)
         A += h/6 * (k1+2*k2+2*k3+k4)
 
-        ## Splitstep 2
+        ## Splitstep 2 - Freq. operator is linear
         A = ifft(fft(A,axis = 0)*exp( h/2 * f_w(z, A, w)), axis = 0)
         z0 = z
 
@@ -536,6 +543,8 @@ class BS_simulation_results():
 
 class BS_mc_simulation():
     pass
+
+## Testing
 
 
 #out = r_[[bsSimulation(l_1, l_2, l_s, d, length = length, a_p = a_p * p, n_order=n_order)[0][-1,:] for p in powers]]
