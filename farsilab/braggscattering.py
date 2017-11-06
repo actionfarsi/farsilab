@@ -355,8 +355,8 @@ def generateCoefficients(phasematching, A_p = [1,1],
     return k_list
 
 def generatePhasematching(p_w, s_w, dw, dispersion, k_unit = Q_('1/m')):    
-    """Generate a dimensionless phasematching function,
-    depending only on the channel number (not channel index!!)"""
+    """ Generate a dimensionless phasematching function,
+    depending only on the channel number (not channel index!!) """
     beta = dispersion.beta
     return lambda p1,p2,s1,s2: ( beta((p1*dw+p_w) ) - beta((p2*dw+p_w) ) \
              +beta((s1*dw+s_w) ) - beta((s2*dw+s_w) )).to(k_unit).magnitude
@@ -438,7 +438,12 @@ def BS_mc_evolution(wl_p1, wl_p2, wl_s, dispersion,
 
 ## Multichannel Plotting
 def plot_mc_phasematching(p1_wl, p2_wl, s_wl, d,
-                         gamma, length, n_order=3):
+                         gamma, length, n_order=3,
+                         ax = None):
+    
+    if ax is None:
+        ax = pl.gca()
+
     p_w = 2*pi*c_light*(1/p1_wl + 1/p2_wl)/2
     s_w = 2*pi*c_light*(1/s_wl)
     dw =  2*pi*c_light*(1/p1_wl - 1/p2_wl)
@@ -447,9 +452,9 @@ def plot_mc_phasematching(p1_wl, p2_wl, s_wl, d,
     s = 2*pi*c_light/(np.arange(-n_order, n_order+1,1) * dw + s_w)
 
     i_wl, dk, gain = k_bs(p1_wl, p2_wl, s_r, d,  p_eff= gamma, z =length)
-    pl.plot(s_r, gain )
+    ax.plot(s_r, gain )
     for w in s:
-        pl.axvline(w.magnitude, ls='--', c = 'green', lw = 2)
+        ax.axvline(w.magnitude, ls='--', c = 'green', lw = 2)
 
 
 ## Plot the result
@@ -466,6 +471,8 @@ def plot_mc_results(output, dz = 1):
     ax1.plot(x,abs(output[:,N//2+1])**2)  # Plot few channels
     ax1.plot(x,abs(output[:,N//2-2])**2)
     ax1.plot(x,abs(output[:,N//2+2])**2)  # Plot few channels
+    ax1.plot(x,abs(output[:,N//2-3])**2)
+    ax1.plot(x,abs(output[:,N//2+3])**2)  # Plot few channels
 
     ax1.plot(x,np.sum(abs(output)**2,1), c = 'k', ls = '--') # Total Energy
     ax1.set_xlabel('Propagation dx')
