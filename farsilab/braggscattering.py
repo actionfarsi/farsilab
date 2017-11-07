@@ -68,17 +68,17 @@ def optimal_bs(p1_wl, p2_wl, d,
     s_wl = wl[np.argmax(gain)]
     #i_wl = wl_i[np.argmax(gain)]
 
-    res = lmfit.Model(eta_vs_wl_f).fit(gain,
-                       x = wl,
-                       d_wl = 1, r = 1, wl0 = s_wl)
+    #res = lmfit.Model(eta_vs_wl_f).fit(gain,
+    #                   x = wl,
+    #                   d_wl = 1, r = 1, wl0 = s_wl)
     #pl.plot(wl, gain)
     #print(gain, s_wl, wl)
     #pl.plot(wl, lmfit.Model(eta_vs_wl_f).fit(gain,
     #                   x = wl,
     #                  d_wl = .1, r = 1, wl0 = s_wl))
 
-    print(res.fit_report())
-    res.plot_fit()
+    #print(res.fit_report())
+    #res.plot_fit()
 
     
     
@@ -430,9 +430,9 @@ def BS_mc_evolution( p0, gamma, length, dispersion,
     nl_eff = gamma * p0
     a_p = a_p * sqrt(nl_eff.to(1/u_l).magnitude)
     
-    p_out = np.zeros((gridsize + 1, len(a_p)), dtype= np.complex64)
+    p_out = np.zeros((grid_size + 1, len(a_p)), dtype= np.complex64)
     
-    if varying_pump:
+    if vary_pump:
         ## Simulate pumps
         ode_pump = complex_ode(f)
         ode.set_initial_value(a_p)
@@ -444,7 +444,7 @@ def BS_mc_evolution( p0, gamma, length, dispersion,
                 raise Exception()
     
     # Use it to generate the coupling matrix coefficients
-    k_dict = generateCoefficients(a_p = a_p, phasematching = phasematching, 
+    k_dict = generateCoefficients(A_p = a_p, phasematching = phasematching, 
                                   n_order= n_order, kappa_limit = 1e3/dz)
     
     
@@ -469,13 +469,13 @@ def BS_mc_evolution( p0, gamma, length, dispersion,
 
     
     ## Compute simulation parameters ###
-    print(k_dict)
+    # print(k_dict)
 
     # Define a f(z, x) = dx/dz
     f = lambda z, x: np.dot(x, interactionMatrixZ(k_dict, z, n_ch))
     
     # Build the output array
-    output = np.zeros((grid_size+1, n_ch), dtype= np.complex64)
+    output = np.zeros((grid_size, n_ch), dtype= np.complex64)
     output[0,:] = a_s
 
     # Finally, simulate
@@ -534,8 +534,8 @@ def plot_mc_results(output, dz = 1):
     ax1.plot(x,np.sum(abs(output)**2,1), c = 'k', ls = '--') # Total Energy
     ax1.set_xlabel('Propagation dx')
     
-    ax2.bar(pl.arange(N)-N/2,abs(output[-1])**2)
-
+    ax2.bar(pl.arange(N)-N/2, abs(output[-1])**2)
+    ax2.set_ylim(0,1.03)
 
 ## Output Class Helper
 class BS_simulation_results():

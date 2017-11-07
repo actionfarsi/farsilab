@@ -5,6 +5,7 @@ from numpy import pi, linspace, sqrt, sin, r_, conj, exp, \
                  diff,cumsum
 from scipy.interpolate import UnivariateSpline as spline
 from scipy.integrate import cumtrapz
+from scipy.io import loadmat
 from .units import *
 
 class Dispersion():
@@ -121,6 +122,19 @@ class Dispersion():
         return Dispersion.from_beta2(2*pi*c_light/wl, b2,
         wl_range = (np.amin(wl).to('nm').magnitude, np.amax(wl).to('nm').magnitude))
     
+    def from_FEM_mat(filepath):
+        """ Load Comsol FEM dispersion """
+        m = loadmat(filepath, squeeze_me = True)['FEM']
+
+        x,y = m['wl'].flatten()[0], m['n_eff'].flatten()[0]
+        b2 = m['beta2'].flatten()[0]
+
+        d = Dispersion()
+        d.wl, d.n = (x * Q_('m'), y)
+        return d
+        
+
+
     def __call__(self, wl):
         return - self.beta2(2*pi*c_light/wl) / wl**2*(2*pi*c_light)
 
@@ -132,4 +146,5 @@ class Dispersion():
     def __mul__(self, other):
         "Multiply to easily adjust lengths"
         return Dispersion(wl = self.wl, n = self.n*other)
-        
+
+
